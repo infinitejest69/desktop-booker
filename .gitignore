@@ -4,6 +4,7 @@
 # Node / frontend
 node_modules/
 dist/
+/build/
 .svelte-kit/
 # Tauri
 src-tauri/gen/
