@@ -30,11 +30,11 @@ Offline booking app for a small family-run hotel: rooms, function suites, events
 ## Architecture
 - **Tauri 2** app. Rust holds all business logic and data. Frontend: **Svelte 5 + TypeScript + Vite**. The floor plan and tariff chart are custom SVG / CSS-grid components.
 - **Cargo workspace:**
-  - `crates/core` — pure domain: types, availability/overlap rules, rate calculation, invoice totals. No I/O.
-  - `crates/store` — SQLite via `sqlx` (embedded migrations), repositories, audit log, backup/restore.
-  - `crates/services` — email (`lettre`), PDF, CSV (`csv`), PIN hashing (`argon2`), OS keychain secrets (`keyring`).
+  - `crates/core` (`booker-core`) — pure domain: types, availability/overlap rules, rate calculation, invoice totals. No I/O.
+  - `crates/store` (`booker-store`) — SQLite via `sqlx` (embedded migrations), repositories, audit log, backup/restore.
+  - `crates/services` (`booker-services`) — email (`lettre`), PDF, CSV (`csv`), PIN hashing (`argon2`), OS keychain secrets (`keyring`).
   - `src-tauri` — thin Tauri commands returning typed DTOs (`serde`; TS types via `specta`/`ts-rs`).
-  - `ui/` — Svelte frontend.
+  - `src/` — SvelteKit (Svelte 5) frontend, SPA mode via `adapter-static`.
 - **Data rules**
   - UUID primary keys; `created_at` / `updated_at` / `updated_by` on every row; soft-delete.
   - Money stored as **integer minor units** (pence/cents).
