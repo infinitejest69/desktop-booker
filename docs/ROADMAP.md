@@ -4,7 +4,7 @@ Status values: `todo` · `in-progress` · `done`. Tick tasks (`- [x]`) in each p
 
 | # | Phase | Complexity | Status | Progress |
 |---|---|---|---|---|
-| 0 | [Setup & repo](phases/phase-0-setup.md) | Low | in-progress | 11 / 12 |
+| 0 | [Setup & repo](phases/phase-0-setup.md) | Low | in-progress (CI builds pending) | 12 / 12 |
 | 1 | [Property config & floor-plan editor](phases/phase-1-property-floorplan.md) | Medium | todo | 0 / 14 |
 | 2 | [Room bookings & rates](phases/phase-2-bookings-rates.md) | High | todo | 0 / 16 |
 | 3 | [Users, PIN login & audit log](phases/phase-3-users-audit.md) | Low–Med | todo | 0 / 9 |

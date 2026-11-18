@@ -14,7 +14,7 @@
 - [x] `.gitignore`, `README.md`, licence choice (proprietary/private vs MIT)
 - [x] `rustfmt.toml`, clippy lint config, `vitest` set up
 - [x] GitHub Actions CI: fmt + clippy + test on ubuntu; build matrix ubuntu / windows / macos
-- [ ] `gh repo create desktop-booker --private --source . --push`
+- [x] `gh repo create desktop-booker --private --source . --push`
 - [x] `pnpm tauri dev` opens a window on Linux
 
 ## Acceptance
@@ -36,3 +36,15 @@ gh repo view desktop-booker
 - **Licence:** private / `UNLICENSED` (all rights reserved). Revisit if it is ever open-sourced.
 - Release build profile (LTO, strip) lives in the workspace root `Cargo.toml`. Cargo ignores profiles set in member crates.
 - Toolchain at setup: rustc 1.100.0, Node 26.13, pnpm 12.21, Tauri CLI 2, Svelte 5, Vite 8, vitest 5.
+- Repo: https://github.com/infinitejest69/desktop-booker (private).
+- First CI run failed: adding `packageManager` to `package.json` made the lockfile stale for `--frozen-lockfile`. Fixed in `fix(ci): update lockfile…`.
+- Dependabot (account default) is on. It opened PRs straight away, including a **major** `@sveltejs/kit` 2 → 3 bump, and GitHub reports 10 dependency alerts (2 high).
+
+## Status at pause (2026-11-18)
+- Locally verified: `pnpm check`, `pnpm test`, `cargo fmt/clippy/test` all pass; `pnpm tauri dev` builds and opens the window.
+- CI run for `fix(ci)` commit: **Lint & test (Linux) passed**. The ubuntu / windows / macos build jobs were still running at the pause.
+
+## Next session
+1. Check CI: `gh run list -L3`. If a build job failed, `gh run view <id> --log-failed` and fix.
+2. Triage Dependabot: review the alerts at /security/dependabot; merge safe patch/minor PRs; **hold the SvelteKit 3 major** (decide via ADR), or configure `.github/dependabot.yml` to group updates and ignore majors.
+3. Once CI is green on all 3 OSes → mark Phase 0 `done` in ROADMAP and start Phase 1.
