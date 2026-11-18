@@ -1,0 +1,23 @@
+# Rust
+/target/
+**/target/
+# Node / frontend
+node_modules/
+dist/
+.svelte-kit/
+# Tauri
+src-tauri/gen/
+# Local data — never commit guest data
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+backups/
+# Env / secrets
+.env
+.env.*
+.claude/settings.local.json
+# OS / editors
+.DS_Store
+Thumbs.db
+.idea/
