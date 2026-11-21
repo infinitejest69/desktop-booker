@@ -37,6 +37,7 @@
     payments: [],
     invoices: [],
     invoiceCounter: 0,
+    housekeeping: {},
   };
   // ?fake=setup starts with no users; ?fake=locked starts signed out.
   const mode = new URLSearchParams(location.search).get("fake");
@@ -505,7 +506,7 @@
     "save_settings", "save_floor", "delete_floor", "save_room_type", "delete_room_type",
     "save_space", "delete_space", "save_rate_rule", "delete_rate_rule", "save_board_option",
     "delete_board_option", "list_users", "save_user", "list_audit", "seed_demo_data",
-    "save_suite_rates", "save_tax_rate", "save_invoice_settings",
+    "save_suite_rates", "save_tax_rate", "save_invoice_settings", "erase_guest", "revenue_report",
   ]);
 
   const guestName = (b) => {
@@ -605,7 +606,10 @@
     },
     set_booking_status: ({ id, status }) => {
       const b = db.bookings.find((x) => x.booking.id === id);
-      return saveBooking({ ...b.booking, status }, guestName(b).g);
+      const saved = saveBooking({ ...b.booking, status }, guestName(b).g);
+      // Like the store: a check-out leaves the rooms dirty.
+      if (status === "checked_out") b.booking.rooms.forEach((r) => (db.housekeeping[r.space_id] = "dirty"));
+      return saved;
     },
     search_bookings: ({ query }) =>
       db.bookings
@@ -680,6 +684,51 @@
       return eventDetail(ev);
     },
     save_event: ({ event, organiser }) => saveEvent(event, organiser),
+
+    // Housekeeping, reports and guests (mirrors crates/store/src/operations.rs).
+    list_housekeeping: () =>
+      db.spaces
+        .filter((s) => s.kind === "room")
+        .map((s) => ({ space_id: s.id, status: db.housekeeping[s.id] ?? "inspected", note: "" })),
+    set_housekeeping: ({ space, status }) => {
+      db.housekeeping[space] = status;
+    },
+    occupancy_report: ({ period }) => {
+      const rooms = db.spaces.filter((s) => s.kind === "room" && !s.out_of_service).length;
+      return nightsOf(period).map((date) => {
+        const occupied = db.bookings
+          .filter((b) => holds(b.booking.status))
+          .flatMap((b) => b.booking.rooms)
+          .filter((r) => r.stay.start <= date && date < r.stay.end).length;
+        return { date, occupied, rooms, per_mille: rooms ? Math.round((occupied * 1000) / rooms) : 0 };
+      });
+    },
+    revenue_report: () => [],
+    report_csv: ({ report }) => (report === "occupancy" ? "Night,Rooms sold,Rooms,Occupancy %\r\n" : "Month,Rooms\r\n"),
+    guest_profile: ({ id: guestId }) => {
+      const guest = db.guests.find((g) => g.id === guestId);
+      const stays = db.bookings
+        .filter((b) => b.booking.guest_id === guestId)
+        .map((b) => ({
+          id: b.booking.id,
+          reference: b.booking.reference,
+          guest_name: guestName(b).name,
+          status: b.booking.status,
+          arrival: b.booking.rooms[0].stay.start,
+          departure: b.booking.rooms[0].stay.end,
+          rooms: b.booking.rooms.map((r) => db.spaces.find((s) => s.id === r.space_id)?.name ?? "?"),
+          boards: b.booking.rooms.map(() => null),
+        }));
+      const total_spend = db.bookings
+        .filter((b) => b.booking.guest_id === guestId && holds(b.booking.status))
+        .reduce((n, b) => n + detailOf(b).total, 0);
+      return { guest, stays, total_spend };
+    },
+    erase_guest: ({ id: guestId }) => {
+      db.guests = db.guests.map((g) =>
+        g.id === guestId ? { id: g.id, first_name: "", last_name: "Erased guest", email: "", phone: "", address: "", notes: "" } : g,
+      );
+    },
 
     // Invoicing (mirrors crates/store/src/invoicing.rs; VAT 20% included in prices).
     list_tax_rates: () => db.taxRates,

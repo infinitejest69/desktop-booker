@@ -111,6 +111,9 @@
     { href: "/suites", label: "Function suites" },
     { href: "/events", label: "Events" },
     { href: "/floor-plan", label: "Floor plan" },
+    { href: "/housekeeping", label: "Housekeeping" },
+    { href: "/guests", label: "Guests" },
+    { href: "/reports", label: "Reports" },
   ];
   const hotel = [
     { href: "/setup/property", label: "Hotel details" },

@@ -41,6 +41,11 @@ import type { InvoiceId } from "./bindings/InvoiceId";
 import type { InvoiceSettings } from "./bindings/InvoiceSettings";
 import type { Payment } from "./bindings/Payment";
 import type { TaxRate } from "./bindings/TaxRate";
+import type { DayOccupancy } from "./bindings/DayOccupancy";
+import type { GuestProfile } from "./bindings/GuestProfile";
+import type { HousekeepingStatus } from "./bindings/HousekeepingStatus";
+import type { MonthRevenue } from "./bindings/MonthRevenue";
+import type { RoomHousekeeping } from "./bindings/RoomHousekeeping";
 
 export type ErrorKind = "validation" | "not_found" | "internal" | "locked" | "forbidden";
 
@@ -164,4 +169,14 @@ export const api = {
   addPayment: (owner: FolioOwner, payment: Payment) => call<Folio>("add_payment", { owner, payment }),
   issueInvoice: (owner: FolioOwner) => call<Invoice>("issue_invoice", { owner }),
   getInvoice: (id: InvoiceId) => call<Invoice>("get_invoice", { id }),
+
+  listHousekeeping: () => call<RoomHousekeeping[]>("list_housekeeping"),
+  setHousekeeping: (space: SpaceId, status: HousekeepingStatus, note = "") =>
+    call<void>("set_housekeeping", { space, status, note }),
+  occupancyReport: (period: DateRange) => call<DayOccupancy[]>("occupancy_report", { period }),
+  revenueReport: (period: DateRange) => call<MonthRevenue[]>("revenue_report", { period }),
+  reportCsv: (report: "occupancy" | "revenue", period: DateRange) =>
+    call<string>("report_csv", { report, period }),
+  guestProfile: (id: string) => call<GuestProfile>("guest_profile", { id }),
+  eraseGuest: (id: string) => call<void>("erase_guest", { id }),
 };

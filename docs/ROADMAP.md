@@ -10,7 +10,7 @@ Status values: `todo` · `in-progress` · `done`. Tick tasks (`- [x]`) in each p
 | 3 | [Users, PIN login & audit log](phases/phase-3-users-audit.md) | Low–Med | done | 9 / 9 |
 | 4 | [Function suites & events](phases/phase-4-suites-events.md) | High | done | 12 / 12 |
 | 5 | [Invoicing & payments](phases/phase-5-invoicing.md) | Medium | done | 11 / 11 |
-| 6 | [Housekeeping, CRM, email & reports](phases/phase-6-ops-crm-email-reports.md) | Medium | in-progress | 0 / 14 |
+| 6 | [Housekeeping, CRM, email & reports](phases/phase-6-ops-crm-email-reports.md) | Medium | done | 14 / 14 |
 | 7 | [Backups & packaging](phases/phase-7-backups-packaging.md) | Medium | todo | 0 / 10 |
 | 8 | [Carried over](phases/phase-8-carry-over.md) | Medium | todo | 0 / 12 |
 | – | [Later / not v1](phases/later.md) | – | todo | – |
