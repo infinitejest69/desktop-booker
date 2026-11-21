@@ -11,7 +11,8 @@ test("checking a guest out leaves the room dirty until housekeeping marks it", a
   await page.getByRole("button", { name: "Check out" }).click();
   await expect(page.getByText(/Checked out/).first()).toBeVisible();
 
-  await nav(page, "Housekeeping");
+  await nav(page, "Floor plan");
+  await page.getByRole("group", { name: "View" }).getByText("Cards").click();
   const room = page.getByRole("listitem", { name: "Room G03" });
   await expect(room).toContainText("Dirty");
   await room.getByText("Clean", { exact: true }).click();
@@ -19,8 +20,40 @@ test("checking a guest out leaves the room dirty until housekeeping marks it", a
   await expect(room).toContainText("Clean");
 });
 
+test("rooms slept in last night start the day dirty, and a floor can be marked clean", async ({ demoHotel: page }) => {
+  await nav(page, "Floor plan");
+  await expect(page.getByRole("heading", { level: 1, name: "Floor plan and housekeeping" })).toBeVisible();
+  // Tom has been in G03 since yesterday.
+  const g03 = page.getByRole("button", { name: /^Room G03: In house, dirty/ });
+  await expect(g03).toBeVisible();
+  await expect(page.getByText("To clean: 1")).toBeVisible();
+
+  // Picking the room shows who's there and lets you mark it.
+  await g03.click();
+  const panel = page.getByRole("complementary", { name: "Room G03" });
+  await expect(panel.getByRole("link", { name: "Tom Price" })).toBeVisible();
+  await expect(panel).toContainText("Room only");
+
+  await page.getByRole("button", { name: "Mark floor clean" }).click();
+  await expect(page.getByText("Ground floor: 3 rooms clean")).toBeVisible();
+  await expect(page.getByText("To clean: 0")).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Room G03: In house, clean/ })).toBeVisible();
+});
+
+test("the old housekeeping link opens the cards", async ({ demoHotel: page }) => {
+  await page.evaluate(() => history.pushState({}, "", "/housekeeping"));
+  await page.goto("/housekeeping");
+  await expect(page).toHaveURL(/\/floor-plan\?view=cards/);
+});
+
+test("the dashboard shows each floor with rooms to clean", async ({ demoHotel: page }) => {
+  const hotel = page.getByRole("region", { name: "The hotel today" });
+  await expect(hotel.getByRole("link", { name: "Ground floor: open the floor plan" })).toBeVisible();
+  await expect(hotel.getByRole("listitem", { name: /G03: In house, dirty/ }).or(hotel.getByTitle(/G03: In house, dirty/))).toBeVisible();
+});
+
 test("the daily lists show today's arrivals with board", async ({ demoHotel: page }) => {
-  await nav(page, "Housekeeping");
+  await nav(page, "Floor plan");
   await page.getByRole("link", { name: "Daily lists" }).click();
   const arrivals = page.getByRole("region", { name: "Arrivals" });
   await expect(arrivals.getByRole("row", { name: /Margaret Hughes/ })).toContainText("Bed & breakfast");

@@ -61,6 +61,22 @@ pub fn housekeeping_after(status: BookingStatus) -> Option<HousekeepingStatus> {
     (status == BookingStatus::CheckedOut).then_some(HousekeepingStatus::Dirty)
 }
 
+/// A room's housekeeping state today. Someone slept in it last night
+/// (still in house, or checked out this morning) means it needs doing,
+/// unless housekeeping has marked it since the day began.
+pub fn housekeeping_today(
+    saved: HousekeepingStatus,
+    saved_on: Option<NaiveDate>,
+    slept_in_last_night: bool,
+    today: NaiveDate,
+) -> HousekeepingStatus {
+    if slept_in_last_night && saved_on.is_none_or(|d| d < today) {
+        HousekeepingStatus::Dirty
+    } else {
+        saved
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Reports
 // ---------------------------------------------------------------------------
@@ -251,6 +267,26 @@ mod tests {
         );
         assert_eq!(housekeeping_after(BookingStatus::CheckedIn), None);
         assert_eq!("inspected".parse(), Ok(HousekeepingStatus::Inspected));
+    }
+
+    #[test]
+    fn rooms_slept_in_are_dirty_each_morning_until_marked() {
+        use HousekeepingStatus::*;
+        let today = d("2026-06-02");
+        // Slept in, marked ready yesterday: needs doing again today.
+        assert_eq!(
+            housekeeping_today(Inspected, Some(d("2026-06-01")), true, today),
+            Dirty
+        );
+        // Slept in but already cleaned this morning: stays clean.
+        assert_eq!(housekeeping_today(Clean, Some(today), true, today), Clean);
+        // Never marked and slept in: dirty.
+        assert_eq!(housekeeping_today(Inspected, None, true, today), Dirty);
+        // Empty last night: whatever was last set.
+        assert_eq!(
+            housekeeping_today(Inspected, Some(d("2026-05-20")), false, today),
+            Inspected
+        );
     }
 
     #[test]

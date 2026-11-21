@@ -622,7 +622,7 @@
       const b = db.bookings.find((x) => x.booking.id === id);
       const saved = saveBooking({ ...b.booking, status }, guestName(b).g);
       // Like the store: a check-out leaves the rooms dirty.
-      if (status === "checked_out") b.booking.rooms.forEach((r) => (db.housekeeping[r.space_id] = "dirty"));
+      if (status === "checked_out") b.booking.rooms.forEach((r) => (db.housekeeping[r.space_id] = { status: "dirty", on: today() }));
       return saved;
     },
     search_bookings: ({ query }) =>
@@ -715,12 +715,27 @@
     restore_backup: () => {},
 
     // Housekeeping, reports and guests (mirrors crates/store/src/operations.rs).
-    list_housekeeping: () =>
-      db.spaces
+    // A room slept in last night is dirty unless marked today (housekeeping_today in core).
+    list_housekeeping: () => {
+      const lastNight = addDays(today(), -1);
+      return db.spaces
         .filter((s) => s.kind === "room")
-        .map((s) => ({ space_id: s.id, status: db.housekeeping[s.id] ?? "inspected", note: "" })),
+        .map((s) => {
+          const saved = db.housekeeping[s.id];
+          const slept = db.bookings.some(
+            (b) => holds(b.booking.status) && b.booking.rooms.some((r) => r.space_id === s.id && r.stay.start <= lastNight && lastNight < r.stay.end),
+          );
+          const status = slept && (!saved || saved.on < today()) ? "dirty" : (saved?.status ?? "inspected");
+          return { space_id: s.id, status, note: "" };
+        });
+    },
     set_housekeeping: ({ space, status }) => {
-      db.housekeeping[space] = status;
+      db.housekeeping[space] = { status, on: today() };
+    },
+    set_floor_housekeeping: ({ floor, status }) => {
+      const rooms = db.spaces.filter((s) => s.floor_id === floor && s.kind === "room" && !s.out_of_service);
+      rooms.forEach((s) => (db.housekeeping[s.id] = { status, on: today() }));
+      return rooms.length;
     },
     occupancy_report: ({ period }) => {
       const rooms = db.spaces.filter((s) => s.kind === "room" && !s.out_of_service).length;

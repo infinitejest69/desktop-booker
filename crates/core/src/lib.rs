@@ -55,8 +55,8 @@ pub use invoices::{
 pub use money::Money;
 pub use operations::{
     DayOccupancy, GuestProfile, HousekeepingStatus, MonthRevenue, RevenueSource, RoomHousekeeping,
-    anonymised, csv_money, housekeeping_after, occupancy_by_day, occupancy_total, revenue_by_month,
-    to_csv,
+    anonymised, csv_money, housekeeping_after, housekeeping_today, occupancy_by_day,
+    occupancy_total, revenue_by_month, to_csv,
 };
 pub use property::{Floor, PropertySettings, RoomType, Space, SpaceKind, SuiteCapacities};
 pub use rates::{

@@ -175,6 +175,8 @@ export const api = {
   listHousekeeping: () => call<RoomHousekeeping[]>("list_housekeeping"),
   setHousekeeping: (space: SpaceId, status: HousekeepingStatus, note = "") =>
     call<void>("set_housekeeping", { space, status, note }),
+  setFloorHousekeeping: (floor: FloorId, status: HousekeepingStatus) =>
+    call<number>("set_floor_housekeeping", { floor, status }),
   occupancyReport: (period: DateRange) => call<DayOccupancy[]>("occupancy_report", { period }),
   revenueReport: (period: DateRange) => call<MonthRevenue[]>("revenue_report", { period }),
   reportCsv: (report: "occupancy" | "revenue", period: DateRange) =>

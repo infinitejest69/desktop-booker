@@ -748,7 +748,7 @@ pub async fn list_housekeeping(
 ) -> CmdResult<Vec<RoomHousekeeping>> {
     Ok(session
         .require(&store, Permission::ViewHotel)?
-        .list_housekeeping()
+        .list_housekeeping(today())
         .await?)
 }
 
@@ -763,6 +763,20 @@ pub async fn set_housekeeping(
     Ok(session
         .require(&store, Permission::MakeBookings)?
         .set_housekeeping(space, status, &note)
+        .await?)
+}
+
+/// Marks every bedroom on a floor, e.g. all clean after the morning round.
+#[tauri::command]
+pub async fn set_floor_housekeeping(
+    store: Store<'_>,
+    session: Sess<'_>,
+    floor: FloorId,
+    status: HousekeepingStatus,
+) -> CmdResult<u32> {
+    Ok(session
+        .require(&store, Permission::MakeBookings)?
+        .set_floor_housekeeping(floor, status)
         .await?)
 }
 

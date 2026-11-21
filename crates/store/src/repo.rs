@@ -213,7 +213,18 @@ pub trait InvoiceRepo {
 
 pub trait OperationsRepo {
     /// Every bedroom's housekeeping state (ready if never set).
-    fn list_housekeeping(&self) -> impl Future<Output = StoreResult<Vec<RoomHousekeeping>>> + Send;
+    /// Every bedroom's housekeeping state today: rooms slept in last night
+    /// are dirty unless marked since the day began.
+    fn list_housekeeping(
+        &self,
+        today: NaiveDate,
+    ) -> impl Future<Output = StoreResult<Vec<RoomHousekeeping>>> + Send;
+    /// Marks every in-service bedroom on a floor; returns how many.
+    fn set_floor_housekeeping(
+        &self,
+        floor: FloorId,
+        status: HousekeepingStatus,
+    ) -> impl Future<Output = StoreResult<u32>> + Send;
     fn set_housekeeping(
         &self,
         space: SpaceId,

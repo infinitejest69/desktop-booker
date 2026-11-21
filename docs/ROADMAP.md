@@ -12,7 +12,7 @@ Status values: `todo` · `in-progress` · `done`. Tick tasks (`- [x]`) in each p
 | 5 | [Invoicing & payments](phases/phase-5-invoicing.md) | Medium | done | 11 / 11 |
 | 6 | [Housekeeping, CRM, email & reports](phases/phase-6-ops-crm-email-reports.md) | Medium | done | 14 / 14 |
 | 7 | [Backups & packaging](phases/phase-7-backups-packaging.md) | Medium | done | 10 / 10 |
-| 8 | [Carried over](phases/phase-8-carry-over.md) | Medium | todo | 0 / 12 |
+| 8 | [Carried over](phases/phase-8-carry-over.md) | Medium | in-progress | 4 / 15 |
 | – | [Later / not v1](phases/later.md) | – | todo | – |
 
 **Milestones:** Phase 0 delivers a compiling app shell plus the private repo. Phases 1–2 deliver a usable room-booking app. Phase 7 delivers v1.0.

@@ -5,6 +5,12 @@
 Items move here from their phase (and are marked *moved to Phase 8* there), so each earlier phase can be closed. Supersedes nothing; linked from the roadmap.
 
 ## Tasks
+### Rooms at a glance (added 2026-11-21)
+- [x] One rooms page: the floor plan and the housekeeping cards are two views (Plan / Cards) of the same rooms; every room shows its availability and housekeeping state; selecting a room on the plan shows who's in it and lets you mark it dirty, clean or ready. The Housekeeping menu item goes (its link opens the Cards view).
+- [x] Mark a whole floor clean (or ready) in one go
+- [x] Rooms slept in last night (still in house, or checked out) are dirty each morning until marked clean that day
+- [x] Dashboard: compact floor plans showing availability and dirty rooms at a glance, linking to the floor plan
+
 ### From Phase 4 (suites & events)
 - [ ] Floor plan: show suite use at a chosen time
 - [ ] Packages: decide whether per-head suite pricing plus the room block's group rate is enough, or build a package item (e.g. "wedding package" at one price)
@@ -18,7 +24,6 @@ Items move here from their phase (and are marked *moved to Phase 8* there), so e
 - [ ] Send confirmation from a booking; `email_log`; test-send button (acceptance: arrives through a real SMTP account)
 - [ ] Duplicate guest merge
 - [ ] Save CSV and GDPR exports to a file (needs a save-file dialog, `tauri-plugin-dialog`); Phase 6 offers copy to clipboard
-- [ ] Housekeeping status colours on the floor plan
 - [ ] Report: ADR & RevPAR
 
 ### From Phase 7 (backups & packaging)
@@ -26,4 +31,8 @@ Items move here from their phase (and are marked *moved to Phase 8* there), so e
 - [ ] macOS .dmg checked on a Mac
 
 ## Notes / decisions
+**Rooms at a glance, built (2026-11-21):** the Floor plan page is now *Floor plan and housekeeping*, with Plan and Cards views of the same rooms. On the plan, tiles keep their availability colour and get a *Dirty* or *Clean* marker; clicking a room opens a panel with its guests (booking, dates, board), Dirty / Clean / Ready and *Book this room*. Each floor has *Mark floor clean* and *Mark floor ready*. The counts include *To clean*. `/housekeeping` redirects to the Cards view and the Housekeeping menu item is gone; *Daily lists* moved to the floor plan toolbar. The dashboard has *The hotel today*: a small plan of each floor with a brass dot on rooms to clean. The morning rule is `housekeeping_today` in core: a room in `room_nights` for last night is dirty unless marked since the local day began.
+
 - Created 2026-11-21 at Andy's request: "lets do phase 6 and 7 and push all the undone features in a phase 8".
+- Andy (2026-11-21): the floor plan should give an overview of the hotel and room availability at a glance; he likes the housekeeping cards and wants them combined; whole floors can be marked clean; occupied or checked-out rooms become dirty automatically; the floor layout might suit the dashboard.
+- Design: availability colours stay the tile's fill; housekeeping is a small marker on each tile (and the card's edge colour). "Dirty" is worked out each day: a room someone slept in last night is dirty unless it was marked since this morning, so stayovers need servicing daily without anyone setting it.

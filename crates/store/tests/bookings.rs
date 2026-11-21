@@ -469,7 +469,8 @@ async fn check_out_dirties_the_room_and_reports_add_up() {
         .unwrap();
 
     // Rooms start ready; checking out leaves this one dirty.
-    let ready = f.store.list_housekeeping().await.unwrap();
+    // Before the stay, nobody has slept in either room.
+    let ready = f.store.list_housekeeping(d("2026-05-01")).await.unwrap();
     assert_eq!(ready.len(), 2);
     assert!(
         ready
@@ -482,7 +483,8 @@ async fn check_out_dirties_the_room_and_reports_add_up() {
             .await
             .unwrap();
     }
-    let after = f.store.list_housekeeping().await.unwrap();
+    // The morning after the first night, the room is dirty (slept in).
+    let after = f.store.list_housekeeping(d("2026-05-11")).await.unwrap();
     let room = |id| after.iter().find(|r| r.space_id == id).unwrap().status;
     assert_eq!(room(f.rooms[0].id), HousekeepingStatus::Dirty);
     assert_eq!(room(f.rooms[1].id), HousekeepingStatus::Inspected);
@@ -490,6 +492,25 @@ async fn check_out_dirties_the_room_and_reports_add_up() {
         .set_housekeeping(f.rooms[0].id, HousekeepingStatus::Clean, "")
         .await
         .unwrap();
+    // Marked today, so it stays clean even though it was slept in.
+    let today = chrono::Local::now().date_naive();
+    let cleaned = f.store.list_housekeeping(today).await.unwrap();
+    assert_eq!(
+        cleaned
+            .iter()
+            .find(|r| r.space_id == f.rooms[0].id)
+            .unwrap()
+            .status,
+        HousekeepingStatus::Clean
+    );
+    // A whole floor at once.
+    assert_eq!(
+        f.store
+            .set_floor_housekeeping(f.rooms[0].floor_id, HousekeepingStatus::Inspected)
+            .await
+            .unwrap(),
+        2
+    );
 
     // Hand count: 1 of 2 rooms on the 10th and 11th, none on the 12th and 13th
     // = 2 of 8 room-nights = 25%.

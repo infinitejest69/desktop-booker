@@ -1,5 +1,6 @@
 //! SQLite implementation of housekeeping, reports and guest records.
 
+use booker_core::housekeeping_today;
 use booker_core::{
     BookingId, BookingListItem, BookingStatus, DateRange, DayOccupancy, GuestId, GuestProfile,
     HousekeepingStatus, Money, MonthRevenue, RevenueSource, RoomHousekeeping, SpaceId, SpaceKind,
@@ -38,28 +39,79 @@ pub(crate) async fn mark_room(
 }
 
 impl OperationsRepo for SqliteStore {
-    async fn list_housekeeping(&self) -> StoreResult<Vec<RoomHousekeeping>> {
+    async fn list_housekeeping(&self, today: NaiveDate) -> StoreResult<Vec<RoomHousekeeping>> {
         let mut conn = self.pool.acquire().await?;
         let spaces = load_spaces(&mut conn, None).await?;
-        let rows: Vec<(String, String, String)> =
-            sqlx::query_as("SELECT space_id, status, note FROM housekeeping")
+        let rows: Vec<(String, String, String, String)> =
+            sqlx::query_as("SELECT space_id, status, note, updated_at FROM housekeeping")
+                .fetch_all(&mut *conn)
+                .await?;
+        // Rooms someone slept in last night (one room_nights row each).
+        let last_night = today.pred_opt().unwrap_or(today);
+        let slept: Vec<String> =
+            sqlx::query_scalar("SELECT space_id FROM room_nights WHERE night = ?")
+                .bind(last_night.to_string())
                 .fetch_all(&mut *conn)
                 .await?;
         spaces
             .iter()
             .filter(|s| s.kind == SpaceKind::Room)
             .map(|s| {
-                let saved = rows.iter().find(|(id, _, _)| *id == s.id.to_string());
+                let id = s.id.to_string();
+                let saved = rows.iter().find(|(space, ..)| *space == id);
+                let status = match saved {
+                    Some((_, status, ..)) => parse(status)?,
+                    None => HousekeepingStatus::default(),
+                };
+                // updated_at is UTC; the day it was marked is the local date.
+                let saved_on = saved.and_then(|(.., at)| {
+                    chrono::DateTime::parse_from_rfc3339(at)
+                        .ok()
+                        .map(|t| t.with_timezone(&chrono::Local).date_naive())
+                });
                 Ok(RoomHousekeeping {
                     space_id: s.id,
-                    status: match saved {
-                        Some((_, status, _)) => parse(status)?,
-                        None => HousekeepingStatus::default(),
-                    },
-                    note: saved.map(|(_, _, n)| n.clone()).unwrap_or_default(),
+                    status: housekeeping_today(status, saved_on, slept.contains(&id), today),
+                    note: saved.map(|(_, _, n, _)| n.clone()).unwrap_or_default(),
                 })
             })
             .collect()
+    }
+
+    async fn set_floor_housekeeping(
+        &self,
+        floor: booker_core::FloorId,
+        status: HousekeepingStatus,
+    ) -> StoreResult<u32> {
+        let mut tx = self.pool.begin().await?;
+        let rooms: Vec<_> = load_spaces(&mut tx, Some(floor))
+            .await?
+            .into_iter()
+            .filter(|s| s.kind == SpaceKind::Room && !s.out_of_service)
+            .collect();
+        for room in &rooms {
+            mark_room(&mut tx, room.id, status, "").await?;
+        }
+        let name: Option<String> = sqlx::query_scalar("SELECT name FROM floors WHERE id = ?")
+            .bind(floor.to_string())
+            .fetch_optional(&mut *tx)
+            .await?;
+        let name = name.ok_or(StoreError::NotFound { what: "Floor" })?;
+        record(
+            &mut tx,
+            Change {
+                entity: "housekeeping",
+                entity_id: floor.to_string(),
+                action: "updated",
+                summary: format!("Marked {} rooms on {name} {}", rooms.len(), status.as_str()),
+                before: None,
+                after: None,
+                actor: self.actor.as_ref(),
+            },
+        )
+        .await?;
+        tx.commit().await?;
+        Ok(u32::try_from(rooms.len()).unwrap_or(u32::MAX))
     }
 
     async fn set_housekeeping(

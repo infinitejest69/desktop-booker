@@ -12,6 +12,10 @@
   import { boardLabel, boardsSummary } from "#lib/booking/board.ts";
   import { statusLabel } from "#lib/booking/status.ts";
   import TariffChart from "#lib/chart/TariffChart.svelte";
+  import FloorPlanView from "#lib/floor-plan/FloorPlanView.svelte";
+  import { roomStatuses } from "#lib/floor-plan/status.ts";
+  import type { Floor } from "#lib/bindings/Floor.ts";
+  import type { HousekeepingStatus } from "#lib/bindings/HousekeepingStatus.ts";
   import { todaySummary } from "#lib/dashboard/today.ts";
   import { addDays, daysBetween, formatDay, today } from "#lib/dates.ts";
   import { useSession } from "#lib/session/session.svelte.ts";
@@ -25,6 +29,9 @@
   let loaded = $state(false);
   let hasFloors = $state(false);
   let rooms = $state<Space[]>([]);
+  let floorList = $state<Floor[]>([]);
+  let allSpaces = $state<Space[]>([]);
+  let hk = $state(new Map<string, HousekeepingStatus>());
   let codes = $state(new Map<string, string>());
   let entries = $state<ChartEntry[]>([]);
   let upcoming = $state<BookingListItem[]>([]);
@@ -36,6 +43,7 @@
 
   const summary = $derived(todaySummary(entries, rooms, day));
   const roomName = $derived(new Map(rooms.map((r) => [r.id, r.name])));
+  const planStatuses = $derived(roomStatuses(rooms, entries, day));
 
   async function load() {
     try {
@@ -45,6 +53,12 @@
         api.listSpaces(),
       ]);
       hasFloors = floors.length > 0;
+      floorList = [...floors].sort((a, b) => a.level - b.level);
+      allSpaces = spaces;
+      api
+        .listHousekeeping()
+        .then((list) => (hk = new Map(list.map((r) => [r.space_id, r.status]))))
+        .catch(() => {});
       const level = new Map(floors.map((f) => [f.id, f.level]));
       codes = new Map(types.map((t) => [t.id, t.code]));
       rooms = spaces
@@ -281,6 +295,32 @@
       </section>
     {/if}
 
+    <section class="panel hotel" aria-labelledby="hotel-heading">
+      <div class="section-head">
+        <h2 id="hotel-heading">The hotel today</h2>
+        <a href="/floor-plan" class="link-button">Floor plan and housekeeping</a>
+      </div>
+      <div class="floors">
+        {#each floorList as floor (floor.id)}
+          <a class="floor-link" href="/floor-plan" aria-label={`${floor.name}: open the floor plan`}>
+            <span class="floor-name">{floor.name}</span>
+            <FloorPlanView
+              {floor}
+              spaces={allSpaces.filter((s) => s.floor_id === floor.id)}
+              typeCodes={codes}
+              statuses={planStatuses}
+              housekeeping={hk}
+              cell={13}
+              compact
+            />
+          </a>
+        {/each}
+      </div>
+      <p class="muted key">
+        Green arriving, blue in house, amber leaving, white free; a brass dot needs cleaning.
+      </p>
+    </section>
+
     <section aria-labelledby="chart-heading" class="chart-section">
       <div class="section-head">
         <h2 id="chart-heading">Coming weeks</h2>
@@ -468,6 +508,44 @@
     padding: calc(var(--ui-spacing) * 2) calc(var(--ui-spacing) * 3);
     border-left: 3px solid var(--brass);
     background: var(--brass-tint);
+  }
+
+  .hotel {
+    margin-bottom: calc(var(--ui-spacing) * 6);
+  }
+
+  .floors {
+    display: flex;
+    flex-wrap: wrap;
+    gap: calc(var(--ui-spacing) * 4);
+  }
+
+  .floor-link {
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--ui-spacing) * 1);
+    max-width: 100%;
+    color: var(--ink);
+    text-decoration: none;
+    border-radius: 8px;
+  }
+
+  .floor-link:hover .floor-name {
+    text-decoration: underline;
+  }
+
+  .floor-link:focus-visible {
+    outline: 3px solid var(--heather);
+    outline-offset: 3px;
+  }
+
+  .floor-name {
+    font-weight: 700;
+  }
+
+  .key {
+    margin: calc(var(--ui-spacing) * 2) 0 0;
+    font-size: 0.85rem;
   }
 
   .chart-section {
