@@ -66,6 +66,17 @@
       .reduce((n, s) => n + daysBetween(s.arrival, s.departure), 0),
   );
 
+  /** Saves everything held about the guest to a file, for a subject access request. */
+  async function saveData() {
+    if (!profile) return;
+    try {
+      const path = await api.saveGuestData(profile.guest.id);
+      if (path) toast.success("Saved the guest's data", { description: path });
+    } catch (error) {
+      toast.error("Couldn't save the data", { description: errorMessage(error) });
+    }
+  }
+
   /** Copies everything held about the guest, for a subject access request. */
   async function copyData() {
     if (!profile) return;
@@ -103,6 +114,7 @@
     <div class="heading">
       <h1>{name}</h1>
       <div class="row">
+        <Button onclick={saveData}>Save their data…</Button>
         <Button onclick={copyData}>Copy their data</Button>
         {#if session.can("manage_setup")}
           <Button data-variant="destructive" onclick={erase}>Erase details</Button>

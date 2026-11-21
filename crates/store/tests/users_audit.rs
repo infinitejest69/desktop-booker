@@ -152,3 +152,43 @@ async fn demo_bookings_are_in_the_log() {
             .is_empty()
     );
 }
+
+#[tokio::test]
+async fn email_settings_templates_and_log_round_trip() {
+    use booker_core::{EmailKind, EmailLogEntry, EmailSettings};
+    use booker_store::EmailRepo;
+    let store = SqliteStore::open_in_memory().await.unwrap();
+    assert_eq!(store.get_email_settings().await.unwrap().port, 587);
+    let gmail = EmailSettings {
+        host: "smtp.gmail.com".into(),
+        port: 587,
+        username: "grange@gmail.com".into(),
+        from_address: "grange@gmail.com".into(),
+        from_name: "The Grange".into(),
+    };
+    store.save_email_settings(&gmail).await.unwrap();
+    assert_eq!(store.get_email_settings().await.unwrap(), gmail);
+
+    // Templates start as the defaults and can be reworded one at a time.
+    let mut templates = store.list_email_templates().await.unwrap();
+    assert_eq!(templates.len(), 3);
+    templates[0].subject = "See you soon, {first_name}".into();
+    store.save_email_template(&templates[0]).await.unwrap();
+    let again = store.list_email_templates().await.unwrap();
+    assert_eq!(again[0].subject, "See you soon, {first_name}");
+    assert_eq!(again[1].kind, EmailKind::Amendment);
+
+    let entry = EmailLogEntry {
+        at: chrono::NaiveDateTime::parse_from_str("2026-06-01 10:00:00", "%Y-%m-%d %H:%M:%S")
+            .unwrap(),
+        to: "jo@example.com".into(),
+        subject: "Test".into(),
+        kind: None,
+        booking_id: None,
+        sent: false,
+        error: "No password".into(),
+        sent_by: "Andy".into(),
+    };
+    store.log_email(&entry).await.unwrap();
+    assert_eq!(store.list_email_log(None).await.unwrap(), vec![entry]);
+}

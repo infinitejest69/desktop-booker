@@ -8,6 +8,7 @@ pub mod audit;
 pub mod backups;
 pub mod booking;
 pub mod dates;
+pub mod email;
 pub mod events;
 pub mod folio;
 pub mod grid;
@@ -33,6 +34,10 @@ pub use booking::{
     Guest, Occupancy, RoomPricing, format_reference, free_rooms, validate_booking, validate_guest,
 };
 pub use dates::{DateRange, MAX_NIGHTS, iso_weekday};
+pub use email::{
+    EmailKind, EmailLogEntry, EmailSettings, EmailTemplate, PLACEHOLDERS, booking_values, fill,
+    looks_like_email, validate_email_settings,
+};
 pub use events::{
     BlockPlan, CateringSitting, CateringTotals, Event, EventDetail, EventKind, EventListItem,
     EventRoom, LinkedRoom, RoomBlock, block_due_for_release, block_room_price, catering_totals,

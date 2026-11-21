@@ -40,6 +40,14 @@
     housekeeping: {},
     backupSettings: { folder: "", keep_daily: 14, keep_monthly: 12 },
     backups: [],
+    email: { host: "", port: 587, username: "", from_address: "", from_name: "" },
+    emailPassword: null,
+    emailTemplates: ["confirmation", "amendment", "cancellation"].map((kind) => ({
+      kind,
+      subject: kind === "confirmation" ? "Your booking at {hotel_name}: {reference}" : `Booking {reference}: ${kind}`,
+      body: "Dear {first_name}, …",
+    })),
+    emailLog: [],
   };
   // ?fake=setup starts with no users; ?fake=locked starts signed out.
   const mode = new URLSearchParams(location.search).get("fake");
@@ -503,6 +511,22 @@
     };
   }
 
+  /** Pretends to send: fails like the real thing without a password. */
+  function fakeSend(to, subject, kind, bookingId) {
+    const sent = db.emailPassword !== null;
+    db.emailLog.unshift({
+      at: new Date().toISOString().slice(0, 19),
+      to,
+      subject,
+      kind,
+      booking_id: bookingId,
+      sent,
+      error: sent ? "" : "No password is saved for this email account. Enter it in My hotel, Email.",
+      sent_by: current?.name ?? "",
+    });
+    if (!sent) err("No password is saved for this email account. Enter it in My hotel, Email.");
+  }
+
   function backupStatus() {
     const last = db.backups[0]?.taken_at ?? null;
     return {
@@ -520,7 +544,7 @@
     "save_settings", "save_floor", "delete_floor", "save_room_type", "delete_room_type",
     "save_space", "delete_space", "save_rate_rule", "delete_rate_rule", "save_board_option",
     "delete_board_option", "list_users", "save_user", "list_audit", "seed_demo_data",
-    "save_suite_rates", "save_tax_rate", "save_invoice_settings", "erase_guest", "merge_guests", "revenue_report", "room_kpis", "save_backup_settings", "backup_now", "restore_backup",
+    "save_suite_rates", "save_tax_rate", "save_invoice_settings", "erase_guest", "merge_guests", "revenue_report", "room_kpis", "save_backup_settings", "backup_now", "restore_backup", "save_email_settings", "save_email_template", "send_test_email",
   ]);
 
   const guestName = (b) => {
@@ -698,6 +722,28 @@
       return eventDetail(ev);
     },
     save_event: ({ event, organiser }) => saveEvent(event, organiser),
+
+    // Email: nothing is really sent; a fixed "app password" stands in for the keychain.
+    get_email_setup: () => ({ settings: db.email, password_saved: db.emailPassword !== null, templates: db.emailTemplates }),
+    save_email_settings: ({ settings, password }) => {
+      if (!settings.host.trim()) err("Mail server must not be empty");
+      db.email = settings;
+      if (password) db.emailPassword = password.replace(/\s/g, "");
+    },
+    save_email_template: ({ template }) => {
+      db.emailTemplates = db.emailTemplates.map((t) => (t.kind === template.kind ? template : t));
+    },
+    send_test_email: ({ to }) => fakeSend(to, "Test email", null, null),
+    send_booking_email: ({ booking, kind }) => {
+      const b = db.bookings.find((x) => x.booking.id === booking);
+      const g = guestName(b).g;
+      if (!g.email) err("This guest has no email address. Add one to the booking first.");
+      const t = db.emailTemplates.find((x) => x.kind === kind);
+      return fakeSend(g.email, t.subject.replace("{reference}", b.booking.reference).replace("{hotel_name}", db.settings.hotel_name), kind, booking);
+    },
+    list_email_log: ({ booking }) => db.emailLog.filter((e) => !booking || e.booking_id === booking),
+    save_report_csv: ({ report }) => `/home/demo/${report}.csv`,
+    save_guest_data: () => "/home/demo/guest.json",
 
     // Backups (mirrors src-tauri's backup commands): none yet, so overdue.
     backup_status: () => backupStatus(),

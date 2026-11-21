@@ -270,3 +270,31 @@ pub trait BackupRepo {
         settings: &booker_core::BackupSettings,
     ) -> impl Future<Output = StoreResult<booker_core::BackupInfo>> + Send;
 }
+
+pub trait EmailRepo {
+    /// Saved settings, or empty ones (port 587) if none.
+    fn get_email_settings(
+        &self,
+    ) -> impl Future<Output = StoreResult<booker_core::EmailSettings>> + Send;
+    fn save_email_settings(
+        &self,
+        settings: &booker_core::EmailSettings,
+    ) -> impl Future<Output = StoreResult<()>> + Send;
+    /// All three templates: the hotel's own wording, or the defaults.
+    fn list_email_templates(
+        &self,
+    ) -> impl Future<Output = StoreResult<Vec<booker_core::EmailTemplate>>> + Send;
+    fn save_email_template(
+        &self,
+        template: &booker_core::EmailTemplate,
+    ) -> impl Future<Output = StoreResult<()>> + Send;
+    fn log_email(
+        &self,
+        entry: &booker_core::EmailLogEntry,
+    ) -> impl Future<Output = StoreResult<()>> + Send;
+    /// A booking's emails, or the latest 200 of all, newest first.
+    fn list_email_log(
+        &self,
+        booking: Option<BookingId>,
+    ) -> impl Future<Output = StoreResult<Vec<booker_core::EmailLogEntry>>> + Send;
+}

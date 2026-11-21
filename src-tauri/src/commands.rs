@@ -1022,3 +1022,260 @@ pub async fn restore_backup(
     booker_store::restore_file(&chosen, &db.0)?;
     app.restart();
 }
+
+// ---------------------------------------------------------------------------
+// Email
+// ---------------------------------------------------------------------------
+
+use booker_core::{EmailKind, EmailLogEntry, EmailSettings, EmailTemplate};
+use booker_services::email as mail;
+use booker_store::EmailRepo;
+
+/// The email settings and whether a password is saved in the keychain.
+#[derive(serde::Serialize)]
+pub struct EmailSetup {
+    settings: EmailSettings,
+    password_saved: bool,
+    templates: Vec<EmailTemplate>,
+}
+
+#[tauri::command]
+pub async fn get_email_setup(store: Store<'_>, session: Sess<'_>) -> CmdResult<EmailSetup> {
+    let acting = session.require(&store, Permission::ViewHotel)?;
+    let settings = acting.get_email_settings().await?;
+    let username = settings.username.clone();
+    let password_saved =
+        tauri::async_runtime::spawn_blocking(move || mail::has_password(&username))
+            .await
+            .unwrap_or(false);
+    Ok(EmailSetup {
+        settings,
+        password_saved,
+        templates: acting.list_email_templates().await?,
+    })
+}
+
+/// Saves the server details; a new password goes to the keychain, not the database.
+#[tauri::command]
+pub async fn save_email_settings(
+    store: Store<'_>,
+    session: Sess<'_>,
+    settings: EmailSettings,
+    password: Option<String>,
+) -> CmdResult<()> {
+    let acting = session.require(&store, Permission::ManageSetup)?;
+    acting.save_email_settings(&settings).await?;
+    if let Some(password) = password.filter(|p| !p.trim().is_empty()) {
+        let username = settings.username.clone();
+        // Gmail shows app passwords in groups of four; the spaces aren't part of it.
+        let password: String = password.chars().filter(|c| !c.is_whitespace()).collect();
+        tauri::async_runtime::spawn_blocking(move || mail::save_password(&username, &password))
+            .await
+            .map_err(|e| CommandError::internal(e.to_string()))?
+            .map_err(CommandError::validation)?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn save_email_template(
+    store: Store<'_>,
+    session: Sess<'_>,
+    template: EmailTemplate,
+) -> CmdResult<()> {
+    Ok(session
+        .require(&store, Permission::ManageSetup)?
+        .save_email_template(&template)
+        .await?)
+}
+
+/// Sends, logs the attempt, and turns a failure into a message for staff.
+async fn send_and_log(
+    acting: &SqliteStore,
+    sender: &str,
+    to: &str,
+    subject: &str,
+    body: &str,
+    kind: Option<EmailKind>,
+    booking_id: Option<BookingId>,
+) -> CmdResult<()> {
+    let settings = acting.get_email_settings().await?;
+    let result = mail::send(&settings, to, subject, body).await;
+    acting
+        .log_email(&EmailLogEntry {
+            at: chrono::Local::now().naive_local(),
+            to: to.to_string(),
+            subject: subject.to_string(),
+            kind,
+            booking_id,
+            sent: result.is_ok(),
+            error: result.as_ref().err().cloned().unwrap_or_default(),
+            sent_by: sender.to_string(),
+        })
+        .await?;
+    result.map_err(CommandError::validation)
+}
+
+#[tauri::command]
+pub async fn send_test_email(store: Store<'_>, session: Sess<'_>, to: String) -> CmdResult<()> {
+    let acting = session.require(&store, Permission::ManageSetup)?;
+    let hotel = acting.get_settings().await?;
+    let sender = session.current_user().map(|u| u.name).unwrap_or_default();
+    send_and_log(
+        &acting,
+        &sender,
+        &to,
+        &format!("Test email from {}", hotel.hotel_name),
+        &format!(
+            "This is a test from DesktopBooker. If you can read this, {} can send emails.",
+            hotel.hotel_name
+        ),
+        None,
+        None,
+    )
+    .await
+}
+
+/// "£1,234.50" for GBP, "EUR 1234.50" otherwise.
+fn money_text(m: booker_core::Money, currency: &str) -> String {
+    let pounds = booker_core::csv_money(m);
+    if currency.eq_ignore_ascii_case("GBP") {
+        format!("£{pounds}")
+    } else {
+        format!("{currency} {pounds}")
+    }
+}
+
+/// Emails the guest the confirmation, amendment or cancellation for a booking.
+#[tauri::command]
+pub async fn send_booking_email(
+    store: Store<'_>,
+    session: Sess<'_>,
+    booking: BookingId,
+    kind: EmailKind,
+) -> CmdResult<()> {
+    let acting = session.require(&store, Permission::MakeBookings)?;
+    let detail = acting.get_booking(booking).await?;
+    let to = detail.guest.email.trim().to_string();
+    if to.is_empty() {
+        return Err(CommandError::validation(
+            "This guest has no email address. Add one to the booking first.",
+        ));
+    }
+    let hotel = acting.get_settings().await?;
+    let spaces = acting.list_spaces(None).await?;
+    let rooms: Vec<String> = detail
+        .booking
+        .rooms
+        .iter()
+        .map(|r| {
+            spaces
+                .iter()
+                .find(|s| s.id == r.space_id)
+                .map_or_else(|| "?".to_string(), |s| s.name.clone())
+        })
+        .collect();
+    let template = acting
+        .list_email_templates()
+        .await?
+        .into_iter()
+        .find(|t| t.kind == kind)
+        .unwrap_or_else(|| EmailTemplate::default_for(kind));
+    let currency = hotel.currency.clone();
+    let values =
+        booker_core::booking_values(&detail, &rooms, &hotel.hotel_name, &hotel.phone, |m| {
+            money_text(m, &currency)
+        });
+    let sender = session.current_user().map(|u| u.name).unwrap_or_default();
+    send_and_log(
+        &acting,
+        &sender,
+        &to,
+        &booker_core::fill(&template.subject, &values),
+        &booker_core::fill(&template.body, &values),
+        Some(kind),
+        Some(booking),
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn list_email_log(
+    store: Store<'_>,
+    session: Sess<'_>,
+    booking: Option<BookingId>,
+) -> CmdResult<Vec<EmailLogEntry>> {
+    Ok(session
+        .require(&store, Permission::ViewHotel)?
+        .list_email_log(booking)
+        .await?)
+}
+
+// ---------------------------------------------------------------------------
+// Saving files (the system save dialog, opened from Rust)
+// ---------------------------------------------------------------------------
+
+/// Asks where to save, then writes the text there. `None` if cancelled.
+async fn save_with_dialog(
+    app: &tauri::AppHandle,
+    file_name: String,
+    filter: (&'static str, &'static str),
+    contents: String,
+) -> CmdResult<Option<String>> {
+    use tauri_plugin_dialog::DialogExt;
+    let dialog = app.dialog().clone();
+    // The dialog waits for the person, so it runs off the async threads.
+    let chosen = tauri::async_runtime::spawn_blocking(move || {
+        dialog
+            .file()
+            .set_file_name(file_name)
+            .add_filter(filter.0, &[filter.1])
+            .blocking_save_file()
+    })
+    .await
+    .map_err(|e| CommandError::internal(e.to_string()))?;
+    let Some(path) = chosen.and_then(|p| p.into_path().ok()) else {
+        return Ok(None);
+    };
+    std::fs::write(&path, contents)
+        .map_err(|e| CommandError::validation(format!("Couldn't save {}: {e}", path.display())))?;
+    Ok(Some(path.display().to_string()))
+}
+
+#[tauri::command]
+pub async fn save_report_csv(
+    app: tauri::AppHandle,
+    store: Store<'_>,
+    session: Sess<'_>,
+    report: String,
+    period: DateRange,
+) -> CmdResult<Option<String>> {
+    let name = format!("{report}-{}.csv", period.start.format("%Y-%m"));
+    let csv = report_csv(store, session, report, period).await?;
+    save_with_dialog(&app, name, ("CSV", "csv"), csv).await
+}
+
+/// Everything held about a guest, as JSON, for a subject access request.
+#[tauri::command]
+pub async fn save_guest_data(
+    app: tauri::AppHandle,
+    store: Store<'_>,
+    session: Sess<'_>,
+    id: GuestId,
+) -> CmdResult<Option<String>> {
+    let profile = session
+        .require(&store, Permission::ViewHotel)?
+        .guest_profile(id)
+        .await?;
+    let json = serde_json::to_string_pretty(&profile)
+        .map_err(|e| CommandError::internal(e.to_string()))?;
+    let name = format!(
+        "guest-{}.json",
+        profile
+            .guest
+            .display_name()
+            .to_lowercase()
+            .replace(' ', "-")
+    );
+    save_with_dialog(&app, name, ("JSON", "json"), json).await
+}

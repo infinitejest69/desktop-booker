@@ -26,6 +26,7 @@ booker-core = { path = "../crates/core" }
 booker-store = { version = "0.1.0", path = "../crates/store" }
 chrono = { version = "0.4.45", default-features = false, features = ["clock", "serde"] }
 booker-services = { version = "0.1.0", path = "../crates/services" }
+tauri-plugin-dialog = "2"
 
 [lints]
 workspace = true

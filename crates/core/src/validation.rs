@@ -105,6 +105,8 @@ pub enum ValidationError {
     InvalidTaxRate,
     #[error("A refund can't be more than has been paid")]
     RefundTooLarge,
+    #[error("That doesn't look like an email address")]
+    InvalidEmail,
 }
 
 pub type ValidationResult = Result<(), ValidationError>;

@@ -47,6 +47,17 @@ import type { HousekeepingStatus } from "./bindings/HousekeepingStatus";
 import type { MonthRevenue } from "./bindings/MonthRevenue";
 import type { RoomHousekeeping } from "./bindings/RoomHousekeeping";
 import type { RoomKpis } from "./bindings/RoomKpis";
+import type { EmailKind } from "./bindings/EmailKind";
+import type { EmailLogEntry } from "./bindings/EmailLogEntry";
+import type { EmailSettings } from "./bindings/EmailSettings";
+import type { EmailTemplate } from "./bindings/EmailTemplate";
+
+/** From `get_email_setup` (the password itself never leaves the keychain). */
+export interface EmailSetup {
+  settings: EmailSettings;
+  password_saved: boolean;
+  templates: EmailTemplate[];
+}
 import type { BackupSettings } from "./bindings/BackupSettings";
 import type { BackupStatus } from "./bindings/BackupStatus";
 
@@ -192,4 +203,18 @@ export const api = {
   backupNow: () => call<BackupStatus>("backup_now"),
   /** Replaces all data with the backup and restarts the app. */
   restoreBackup: (name: string) => call<void>("restore_backup", { name }),
+
+  getEmailSetup: () => call<EmailSetup>("get_email_setup"),
+  /** A new password goes to the system keychain; leave it null to keep the saved one. */
+  saveEmailSettings: (settings: EmailSettings, password: string | null) =>
+    call<void>("save_email_settings", { settings, password }),
+  saveEmailTemplate: (template: EmailTemplate) => call<void>("save_email_template", { template }),
+  sendTestEmail: (to: string) => call<void>("send_test_email", { to }),
+  sendBookingEmail: (booking: string, kind: EmailKind) => call<void>("send_booking_email", { booking, kind }),
+  listEmailLog: (booking: string | null = null) => call<EmailLogEntry[]>("list_email_log", { booking }),
+
+  /** Opens the save dialog; resolves to the saved path, or null if cancelled. */
+  saveReportCsv: (report: "occupancy" | "revenue", period: DateRange) =>
+    call<string | null>("save_report_csv", { report, period }),
+  saveGuestData: (id: string) => call<string | null>("save_guest_data", { id }),
 };

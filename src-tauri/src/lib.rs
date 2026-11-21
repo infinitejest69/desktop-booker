@@ -50,6 +50,7 @@ fn backup_if_due(app: &tauri::AppHandle) {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             // e.g. ~/.local/share/com.desktopbooker.app/booker.db on Linux
             let db_path = app.path().app_data_dir()?.join("booker.db");
@@ -147,6 +148,14 @@ pub fn run() {
             commands::save_backup_settings,
             commands::backup_now,
             commands::restore_backup,
+            commands::get_email_setup,
+            commands::save_email_settings,
+            commands::save_email_template,
+            commands::send_test_email,
+            commands::send_booking_email,
+            commands::list_email_log,
+            commands::save_report_csv,
+            commands::save_guest_data,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

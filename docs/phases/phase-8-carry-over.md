@@ -13,17 +13,17 @@ Items move here from their phase (and are marked *moved to Phase 8* there), so e
 
 ### From Phase 4 (suites & events)
 - [x] Floor plan: show suite use at a chosen time
-- [ ] Packages: decide whether per-head suite pricing plus the room block's group rate is enough, or build a package item (e.g. "wedding package" at one price)
+- [x] Packages: decided (Andy, 2026-11-21): leave as it is; per-head suite pricing plus the room block's group rate cover packages for now
 
 ### From Phase 5 (invoicing)
 - [ ] Print an invoice to PDF on Windows and on Linux and check the file opens (Phase 5 acceptance)
 
 ### From Phase 6 (operations, guests, email, reports)
-- [ ] SMTP settings; password stored in the OS keychain (`keyring`)
-- [ ] Email templates (confirmation, amendment, cancellation) with placeholders
-- [ ] Send confirmation from a booking; `email_log`; test-send button (acceptance: arrives through a real SMTP account)
+- [x] SMTP settings; password stored in the OS keychain (`keyring`)
+- [x] Email templates (confirmation, amendment, cancellation) with placeholders
+- [x] Send confirmation from a booking; `email_log`; test-send button (acceptance: arrives through a real SMTP account; **still to check with Andy's Gmail app password**)
 - [x] Duplicate guest merge
-- [ ] Save CSV and GDPR exports to a file (needs a save-file dialog, `tauri-plugin-dialog`); Phase 6 offers copy to clipboard
+- [x] Save CSV and GDPR exports to a file (needs a save-file dialog, `tauri-plugin-dialog`); Phase 6 offers copy to clipboard
 - [x] Report: ADR & RevPAR
 
 ### From Phase 7 (backups & packaging)
@@ -31,6 +31,12 @@ Items move here from their phase (and are marked *moved to Phase 8* there), so e
 - [ ] macOS .dmg checked on a Mac
 
 ## Notes / decisions
+**Email and saving files (2026-11-21):**
+- Andy: "for now just use Gmail" for testing; MxToolbox can be the *recipient* of a test (its deliverability address replies with a report) but it isn't a server to send through.
+- Core `email.rs`: settings (server, port, user name, from address and name), three templates (confirmation, changes, cancellation) with built-in defaults and `{placeholders}`, `fill`, `booking_values`, the log entry. Store: migration `0008` (`email_settings`, `email_templates`, `email_log`). Services: `booker_services::email` sends with `lettre` over rustls (STARTTLS on 587, TLS on 465) and keeps the password in the OS keychain with `keyring` 4 (service "DesktopBooker SMTP", the user name as account); the database never holds it. Gmail needs an app password; spaces in it are removed.
+- Screens: My hotel → Email (Use Gmail, account, password saved or not, send a test, edit the three emails, recent emails); "Email the guest" on each booking (confirmation, changes, or cancellation for cancelled bookings) with that booking's sent and failed emails. Every attempt is logged, failures with the reason.
+- Saving files: `tauri-plugin-dialog` 2 (Rust crate only, no npm package) opens the system save dialog from Rust; Reports has *Save as CSV…* and a guest's page *Save their data…* (JSON). Copy to clipboard stays too.
+
 **More built (2026-11-21):**
 - *Suite use on the floor plan:* a "Suites at" time on the floor plan (now, by default); a suite booked at that time turns heather and says what for; clear the time to see every suite booked that day. Clicking a suite lists its hires that day with links.
 - *ADR and RevPAR:* `room_kpis` in core (room revenue ÷ room-nights sold, and ÷ room-nights available, rounded to the penny), shown on Reports for admins.

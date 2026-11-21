@@ -55,6 +55,16 @@
     }
   });
 
+  async function saveCsv(report: "occupancy" | "revenue") {
+    try {
+      const range = report === "occupancy" ? monthRange(month) : yearRange(month);
+      const path = await api.saveReportCsv(report, range);
+      if (path) toast.success("Saved", { description: path });
+    } catch (error) {
+      toast.error("Couldn't save the report", { description: errorMessage(error) });
+    }
+  }
+
   async function copyCsv(report: "occupancy" | "revenue") {
     try {
       const range = report === "occupancy" ? monthRange(month) : yearRange(month);
@@ -81,7 +91,10 @@
   <section class="panel stack" aria-labelledby="occupancy-heading">
     <div class="head">
       <h2 id="occupancy-heading">Occupancy, {monthName(Number(month.slice(0, 4)), Number(month.slice(5, 7)))}</h2>
-      <Button onclick={() => copyCsv("occupancy")}>Copy as CSV</Button>
+      <div class="row">
+        <Button onclick={() => saveCsv("occupancy")}>Save as CSV…</Button>
+        <Button onclick={() => copyCsv("occupancy")}>Copy as CSV</Button>
+      </div>
     </div>
     <p class="summary"><strong>{totalPct}</strong> full: {occupied} of {available} room-nights sold.</p>
     {#if canSeeRevenue && kpis}
@@ -108,7 +121,10 @@
     <section class="panel stack revenue" aria-labelledby="revenue-heading">
       <div class="head">
         <h2 id="revenue-heading">Revenue, {month.slice(0, 4)}</h2>
-        <Button onclick={() => copyCsv("revenue")}>Copy as CSV</Button>
+        <div class="row">
+          <Button onclick={() => saveCsv("revenue")}>Save as CSV…</Button>
+          <Button onclick={() => copyCsv("revenue")}>Copy as CSV</Button>
+        </div>
       </div>
       {#if revenue.length}
         <table class="list">
