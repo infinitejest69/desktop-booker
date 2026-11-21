@@ -24,6 +24,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 booker-core = { path = "../crates/core" }
 booker-store = { version = "0.1.0", path = "../crates/store" }
+chrono = { version = "0.4.45", default-features = false, features = ["serde"] }
 
 [lints]
 workspace = true

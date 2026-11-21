@@ -11,7 +11,12 @@
 
 use std::future::Future;
 
-use booker_core::{Floor, FloorId, PropertySettings, RoomType, RoomTypeId, Space, SpaceId};
+use booker_core::{
+    BoardOption, BoardOptionId, Booking, BookingDetail, BookingId, BookingListItem, BookingStatus,
+    ChartEntry, DateRange, Floor, FloorId, Guest, PropertySettings, RateRule, RateRuleId, RoomType,
+    RoomTypeId, Space, SpaceId, StayQuote,
+};
+use chrono::NaiveDate;
 
 use crate::StoreResult;
 
@@ -48,4 +53,66 @@ pub trait SpaceRepo {
     ) -> impl Future<Output = StoreResult<Vec<Space>>> + Send;
     fn save_space(&self, space: &Space) -> impl Future<Output = StoreResult<()>> + Send;
     fn delete_space(&self, id: SpaceId) -> impl Future<Output = StoreResult<()>> + Send;
+}
+
+pub trait RateRepo {
+    fn list_rate_rules(&self) -> impl Future<Output = StoreResult<Vec<RateRule>>> + Send;
+    fn save_rate_rule(&self, rule: &RateRule) -> impl Future<Output = StoreResult<()>> + Send;
+    fn delete_rate_rule(&self, id: RateRuleId) -> impl Future<Output = StoreResult<()>> + Send;
+    fn list_board_options(&self) -> impl Future<Output = StoreResult<Vec<BoardOption>>> + Send;
+    fn save_board_option(
+        &self,
+        board: &BoardOption,
+    ) -> impl Future<Output = StoreResult<()>> + Send;
+    fn delete_board_option(
+        &self,
+        id: BoardOptionId,
+    ) -> impl Future<Output = StoreResult<()>> + Send;
+}
+
+pub trait GuestRepo {
+    /// Guests whose name, email or phone contains `query` (case-insensitive).
+    fn search_guests(&self, query: &str) -> impl Future<Output = StoreResult<Vec<Guest>>> + Send;
+}
+
+pub trait BookingRepo {
+    /// Prices a room for a stay at today's rates (for the booking form).
+    fn quote_room(
+        &self,
+        space_id: SpaceId,
+        stay: DateRange,
+        adults: u8,
+        children: u8,
+        board: Option<BoardOptionId>,
+    ) -> impl Future<Output = StoreResult<StayQuote>> + Send;
+    /// Bedrooms free for the whole stay, ignoring one booking (the one being edited).
+    fn free_rooms(
+        &self,
+        stay: DateRange,
+        ignore: Option<BookingId>,
+    ) -> impl Future<Output = StoreResult<Vec<SpaceId>>> + Send;
+    /// Booked rooms overlapping `[from, to)`, excluding cancelled and no-shows.
+    fn chart(
+        &self,
+        from: NaiveDate,
+        to: NaiveDate,
+    ) -> impl Future<Output = StoreResult<Vec<ChartEntry>>> + Send;
+    fn get_booking(&self, id: BookingId)
+    -> impl Future<Output = StoreResult<BookingDetail>> + Send;
+    /// Creates or updates a booking and its guest, after every rule passes.
+    fn save_booking(
+        &self,
+        booking: &Booking,
+        guest: &Guest,
+    ) -> impl Future<Output = StoreResult<BookingDetail>> + Send;
+    fn set_booking_status(
+        &self,
+        id: BookingId,
+        status: BookingStatus,
+    ) -> impl Future<Output = StoreResult<BookingDetail>> + Send;
+    /// By reference, guest name or email; with an empty query, the next arrivals.
+    fn search_bookings(
+        &self,
+        query: &str,
+    ) -> impl Future<Output = StoreResult<Vec<BookingListItem>>> + Send;
 }

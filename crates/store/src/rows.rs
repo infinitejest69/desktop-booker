@@ -6,20 +6,20 @@
 //! `StoreError::Corrupt` instead of panicking if the data is odd.
 
 use booker_core::{
-    Floor, FloorId, GridRect, PropertySettings, RoomType, RoomTypeId, Space, SpaceId, SpaceKind,
-    SuiteCapacities,
+    Floor, FloorId, GridRect, Money, PropertySettings, RoomType, RoomTypeId, Space, SpaceId,
+    SpaceKind, SuiteCapacities,
 };
 use uuid::Uuid;
 
 use crate::{StoreError, StoreResult};
 
-fn uuid(s: &str) -> StoreResult<Uuid> {
+pub(crate) fn uuid(s: &str) -> StoreResult<Uuid> {
     Uuid::parse_str(s).map_err(|e| StoreError::Corrupt(format!("bad id {s:?}: {e}")))
 }
 
 /// Converts an `i64` column into a smaller integer type, e.g. `u16`.
 /// The generic `T: TryFrom<i64>` means "any type that can be fallibly made from an i64".
-fn int<T: TryFrom<i64>>(value: i64, column: &'static str) -> StoreResult<T> {
+pub(crate) fn int<T: TryFrom<i64>>(value: i64, column: &'static str) -> StoreResult<T> {
     T::try_from(value).map_err(|_| StoreError::Corrupt(format!("{column} out of range: {value}")))
 }
 
@@ -36,6 +36,8 @@ pub(crate) struct SettingsRow {
     email: String,
     currency: String,
     timezone: String,
+    check_in_time: String,
+    check_out_time: String,
 }
 
 impl From<SettingsRow> for PropertySettings {
@@ -47,6 +49,8 @@ impl From<SettingsRow> for PropertySettings {
             email: r.email,
             currency: r.currency,
             timezone: r.timezone,
+            check_in_time: r.check_in_time,
+            check_out_time: r.check_out_time,
         }
     }
 }
@@ -81,6 +85,9 @@ pub(crate) struct RoomTypeRow {
     default_occupancy: i64,
     max_occupancy: i64,
     description: String,
+    base_rate: i64,
+    extra_adult_rate: i64,
+    child_rate: i64,
 }
 
 impl TryFrom<RoomTypeRow> for RoomType {
@@ -93,6 +100,9 @@ impl TryFrom<RoomTypeRow> for RoomType {
             default_occupancy: int(r.default_occupancy, "room_types.default_occupancy")?,
             max_occupancy: int(r.max_occupancy, "room_types.max_occupancy")?,
             description: r.description,
+            base_rate: Money(r.base_rate),
+            extra_adult_rate: Money(r.extra_adult_rate),
+            child_rate: Money(r.child_rate),
         })
     }
 }

@@ -7,7 +7,7 @@ Built with **Rust + Tauri 2** and a **SvelteKit 3 (Svelte 5)** frontend. Runs on
 - Requirements & architecture: [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md)
 - Roadmap & progress: [docs/ROADMAP.md](docs/ROADMAP.md)
 
-> **Status:** Phase 0 (setup) done · Phase 1 (property config & floor-plan editor) built, awaiting a hands-on check.
+> **Status:** Phases 0–1 done · Phase 2 (room bookings & rates) built, awaiting a hands-on check.
 
 ## Prerequisites
 
@@ -36,7 +36,7 @@ pnpm install
 ```bash
 pnpm tauri dev
 ```
-Opens the DesktopBooker window. On an empty database, the Floor plan page offers **Load demo hotel** (3 floors, 40 rooms, 2 suites). Frontend edits (`src/`) appear as soon as you save; Rust edits (`src-tauri/`, `crates/`) recompile and relaunch the window automatically. The first build takes about a minute.
+Opens the DesktopBooker window. On an empty database, the Dashboard offers **Load demo hotel** (3 floors, 40 rooms, 2 suites, prices, board options and a few bookings). Frontend edits (`src/`) appear as soon as you save; Rust edits (`src-tauri/`, `crates/`) recompile and relaunch the window automatically. The first build takes about a minute.
 
 - **NVIDIA on Linux, window blank or flickering:** `WEBKIT_DISABLE_DMABUF_RENDERER=1 pnpm tauri dev`. The `MESA-EGL` warnings in the terminal are harmless.
 - **Frontend only, in a browser:** `pnpm dev`, then open http://localhost:1420. Calls into Rust won't work there.
@@ -84,7 +84,7 @@ docs/         requirements, roadmap, phase checklists, decisions (ADRs)
 
 ## Data
 
-The database is a single SQLite file in the OS app-data folder (e.g. `~/.local/share/com.desktopbooker.app/` on Linux, `%APPDATA%\com.desktopbooker.app\` on Windows). Never put the live database in a cloud-synced or network folder; use the built-in backups for that (Phase 7).
+The database is a single SQLite file in the OS app-data folder (e.g. `~/.local/share/com.desktopbooker.app/` on Linux, `%APPDATA%\com.desktopbooker.app\` on Windows). Each time the app closes it saves a backup copy to `backups/` next to the database (newest 10 kept). Never put the live database in a cloud-synced or network folder; scheduled backups to a folder of your choice come in Phase 7.
 
 ## Licence
 

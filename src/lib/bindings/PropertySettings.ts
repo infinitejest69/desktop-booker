@@ -11,4 +11,12 @@ currency: string,
 /**
  * IANA time zone, e.g. "Europe/London".
  */
-timezone: string, };
+timezone: string, 
+/**
+ * Usual arrival time, "HH:MM".
+ */
+check_in_time: string, 
+/**
+ * Usual departure time, "HH:MM".
+ */
+check_out_time: string, };

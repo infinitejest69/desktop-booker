@@ -22,7 +22,7 @@ static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("./migrations");
 /// so clones share the same connections.
 #[derive(Clone)]
 pub struct SqliteStore {
-    pool: SqlitePool,
+    pub(crate) pool: SqlitePool,
 }
 
 impl SqliteStore {
@@ -94,10 +94,11 @@ async fn load_floor(conn: &mut SqliteConnection, id: FloorId) -> StoreResult<Flo
         .try_into()
 }
 
-async fn load_room_types(conn: &mut SqliteConnection) -> StoreResult<Vec<RoomType>> {
+pub(crate) async fn load_room_types(conn: &mut SqliteConnection) -> StoreResult<Vec<RoomType>> {
     let rows: Vec<RoomTypeRow> = sqlx::query_as(
-        "SELECT id, name, code, default_occupancy, max_occupancy, description FROM room_types
-         WHERE deleted_at IS NULL ORDER BY name",
+        "SELECT id, name, code, default_occupancy, max_occupancy, description,
+                base_rate, extra_adult_rate, child_rate
+         FROM room_types WHERE deleted_at IS NULL ORDER BY name",
     )
     .fetch_all(conn)
     .await?;
@@ -116,7 +117,7 @@ macro_rules! select_spaces {
     };
 }
 
-async fn load_spaces(
+pub(crate) async fn load_spaces(
     conn: &mut SqliteConnection,
     floor: Option<FloorId>,
 ) -> StoreResult<Vec<Space>> {
@@ -150,7 +151,8 @@ async fn load_spaces(
 impl SettingsRepo for SqliteStore {
     async fn get_settings(&self) -> StoreResult<PropertySettings> {
         let row: Option<SettingsRow> = sqlx::query_as(
-            "SELECT hotel_name, address, phone, email, currency, timezone
+            "SELECT hotel_name, address, phone, email, currency, timezone,
+                    check_in_time, check_out_time
              FROM property_settings WHERE id = 1",
         )
         .fetch_optional(&self.pool)
@@ -161,12 +163,14 @@ impl SettingsRepo for SqliteStore {
     async fn save_settings(&self, settings: &PropertySettings) -> StoreResult<()> {
         validate_settings(settings)?;
         sqlx::query(
-            "INSERT INTO property_settings (id, hotel_name, address, phone, email, currency, timezone)
-             VALUES (1, ?, ?, ?, ?, ?, ?)
+            "INSERT INTO property_settings
+                (id, hotel_name, address, phone, email, currency, timezone, check_in_time, check_out_time)
+             VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?)
              ON CONFLICT (id) DO UPDATE SET
                 hotel_name = excluded.hotel_name, address = excluded.address,
                 phone = excluded.phone, email = excluded.email,
                 currency = excluded.currency, timezone = excluded.timezone,
+                check_in_time = excluded.check_in_time, check_out_time = excluded.check_out_time,
                 updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')",
         )
         .bind(settings.hotel_name.trim())
@@ -175,6 +179,8 @@ impl SettingsRepo for SqliteStore {
         .bind(settings.email.trim())
         .bind(settings.currency.trim())
         .bind(settings.timezone.trim())
+        .bind(settings.check_in_time.trim())
+        .bind(settings.check_out_time.trim())
         .execute(&self.pool)
         .await?;
         Ok(())
@@ -239,12 +245,15 @@ impl RoomTypeRepo for SqliteStore {
         let others = load_room_types(&mut tx).await?;
         validate_room_type(room_type, &others)?;
         sqlx::query(
-            "INSERT INTO room_types (id, name, code, default_occupancy, max_occupancy, description)
-             VALUES (?, ?, ?, ?, ?, ?)
+            "INSERT INTO room_types (id, name, code, default_occupancy, max_occupancy, description,
+                                     base_rate, extra_adult_rate, child_rate)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
              ON CONFLICT (id) DO UPDATE SET
                 name = excluded.name, code = excluded.code,
                 default_occupancy = excluded.default_occupancy,
                 max_occupancy = excluded.max_occupancy, description = excluded.description,
+                base_rate = excluded.base_rate, extra_adult_rate = excluded.extra_adult_rate,
+                child_rate = excluded.child_rate,
                 updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')",
         )
         .bind(room_type.id.to_string())
@@ -253,6 +262,9 @@ impl RoomTypeRepo for SqliteStore {
         .bind(i64::from(room_type.default_occupancy))
         .bind(i64::from(room_type.max_occupancy))
         .bind(room_type.description.trim())
+        .bind(room_type.base_rate.0)
+        .bind(room_type.extra_adult_rate.0)
+        .bind(room_type.child_rate.0)
         .execute(&mut *tx)
         .await?;
         tx.commit().await?;
@@ -353,5 +365,42 @@ impl SpaceRepo for SqliteStore {
             });
         }
         Ok(())
+    }
+}
+
+impl SqliteStore {
+    /// Writes a consistent copy of the database to `dir` as
+    /// `booker-YYYYMMDD-HHMMSS.db`, then deletes all but the newest `keep`
+    /// backups there. Safe while the app is running (`VACUUM INTO`).
+    pub async fn backup_with_rotation(
+        &self,
+        dir: &Path,
+        keep: usize,
+    ) -> StoreResult<std::path::PathBuf> {
+        std::fs::create_dir_all(dir)
+            .map_err(|e| StoreError::Corrupt(format!("can't create {}: {e}", dir.display())))?;
+        let stamp = chrono::Local::now().format("%Y%m%d-%H%M%S%.3f");
+        let path = dir.join(format!("booker-{stamp}.db"));
+        sqlx::query("VACUUM INTO ?")
+            .bind(path.to_string_lossy().into_owned())
+            .execute(&self.pool)
+            .await?;
+
+        let mut backups: Vec<std::path::PathBuf> = std::fs::read_dir(dir)
+            .map_err(|e| StoreError::Corrupt(format!("can't read {}: {e}", dir.display())))?
+            .filter_map(|entry| entry.ok().map(|e| e.path()))
+            .filter(|p| {
+                p.file_name()
+                    .and_then(|n| n.to_str())
+                    .is_some_and(|n| n.starts_with("booker-") && n.ends_with(".db"))
+            })
+            .collect();
+        // Names sort by time because the timestamp is zero-padded, newest last.
+        backups.sort();
+        let excess = backups.len().saturating_sub(keep);
+        for old in backups.into_iter().take(excess) {
+            let _ = std::fs::remove_file(old);
+        }
+        Ok(path)
     }
 }

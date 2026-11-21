@@ -8,6 +8,7 @@ publish.workspace = true
 
 [dependencies]
 booker-core = { version = "0.1.0", path = "../core" }
+chrono = { version = "0.4.45", default-features = false, features = ["clock", "std"] }
 sqlx = { version = "0.9.1", default-features = false, features = ["runtime-tokio", "sqlite", "macros", "migrate"] }
 thiserror = "2.0.21"
 uuid = { version = "1.29.3", features = ["v7", "serde"] }

@@ -24,7 +24,7 @@ export const test = base.extend<{ demoHotel: Page }>({
   demoHotel: async ({ page }, use) => {
     await page.goto("/");
     await page.getByRole("button", { name: "Load demo hotel" }).click();
-    await expect(page.getByRole("tab", { name: "Ground floor" })).toBeVisible();
+    await expect(page.getByRole("region", { name: "Today at a glance" })).toBeVisible();
     await use(page);
   },
 });
@@ -34,6 +34,13 @@ export async function rectOf(page: Page, name: string): Promise<Rect> {
     (n) => (window as unknown as { __fakeDb: { spaces: { name: string; rect: Rect }[] } }).__fakeDb.spaces.find((s) => s.name === n)!.rect,
     name,
   );
+}
+
+/** Opens a page under the collapsible "My Hotel" menu. */
+export async function openSetup(page: Page, name: string): Promise<void> {
+  const link = page.getByRole("link", { name, exact: true });
+  if (!(await link.isVisible())) await page.getByRole("button", { name: "My Hotel" }).click();
+  await link.click();
 }
 
 export { expect };

@@ -52,6 +52,27 @@ define_id!(
     RoomTypeId
 );
 
+define_id!(
+    /// Identifies a [`crate::RateRule`].
+    RateRuleId
+);
+define_id!(
+    /// Identifies a [`crate::BoardOption`].
+    BoardOptionId
+);
+define_id!(
+    /// Identifies a [`crate::Guest`].
+    GuestId
+);
+define_id!(
+    /// Identifies a [`crate::Booking`].
+    BookingId
+);
+define_id!(
+    /// Identifies one room within a [`crate::Booking`].
+    BookingRoomId
+);
+
 #[cfg(test)]
 mod tests {
     use super::*;

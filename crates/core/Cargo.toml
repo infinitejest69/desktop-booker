@@ -7,9 +7,10 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
+chrono = { version = "0.4.45", default-features = false, features = ["serde", "std"] }
 serde = { version = "1.0.229", features = ["derive"] }
 thiserror = "2.0.21"
-ts-rs = { version = "12.0.1", features = ["uuid-impl", "serde-compat"], optional = true }
+ts-rs = { version = "12.0.1", features = ["uuid-impl", "serde-compat", "chrono-impl"], optional = true }
 uuid = { version = "1.29.3", features = ["v7", "serde"] }
 
 [lints]
@@ -19,4 +20,5 @@ workspace = true
 ts = ["dep:ts-rs"]
 
 [dev-dependencies]
+proptest = "1.12.0"
 serde_json = "1.0.154"

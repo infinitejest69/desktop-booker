@@ -108,3 +108,52 @@ table.list td.actions {
     grid-template-columns: 1fr;
   }
 }
+
+.status {
+  display: inline-block;
+  padding: 0.1rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border: 1.5px solid var(--ui-border);
+}
+
+.status[data-status="confirmed"] {
+  background: light-dark(oklch(0.92 0.06 155), oklch(0.36 0.06 155));
+}
+
+.status[data-status="provisional"] {
+  background: light-dark(oklch(0.94 0.07 85), oklch(0.4 0.07 85));
+  border-style: dashed;
+}
+
+.status[data-status="checked_in"] {
+  background: light-dark(oklch(0.9 0.05 245), oklch(0.38 0.06 245));
+}
+
+.status[data-status="checked_out"],
+.status[data-status="cancelled"],
+.status[data-status="no_show"] {
+  background: var(--ui-muted);
+}
+
+a.link-button {
+  display: inline-flex;
+  align-items: center;
+  height: calc(var(--ui-spacing) * 8);
+  padding: 0 calc(var(--ui-spacing) * 3);
+  border: 1px solid var(--ui-input);
+  border-radius: var(--ui-radius);
+  color: inherit;
+  text-decoration: none;
+  font-size: var(--ui-font-size);
+}
+
+a.link-button:hover {
+  background: var(--ui-muted);
+}
+
+a.link-button:focus-visible {
+  outline: 2px solid var(--ui-ring-border);
+  outline-offset: 1px;
+}

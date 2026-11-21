@@ -30,6 +30,9 @@ fn double() -> RoomType {
         default_occupancy: 2,
         max_occupancy: 2,
         description: String::new(),
+        base_rate: booker_core::Money::from_major(90),
+        extra_adult_rate: booker_core::Money::ZERO,
+        child_rate: booker_core::Money::ZERO,
     }
 }
 
@@ -245,4 +248,28 @@ async fn file_database_persists_across_reopen() {
     assert_eq!(s.list_spaces(None).await.unwrap().len(), 42);
     drop(s);
     let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[tokio::test]
+async fn backups_are_written_and_rotated() {
+    // A file database: VACUUM INTO from an in-memory one writes to memory too.
+    let root = std::env::temp_dir().join(format!("booker-backup-test-{}", uuid::Uuid::now_v7()));
+    let dir = root.join("backups");
+    let s = SqliteStore::open(&root.join("booker.db")).await.unwrap();
+    s.seed_demo().await.unwrap();
+    for _ in 0..4 {
+        s.backup_with_rotation(&dir, 2).await.unwrap();
+    }
+    let mut files: Vec<_> = std::fs::read_dir(&dir)
+        .unwrap()
+        .map(|e| e.unwrap().path())
+        .collect();
+    files.sort();
+    assert_eq!(files.len(), 2, "only the newest two are kept");
+
+    let restored = SqliteStore::open(&files[1]).await.unwrap();
+    assert_eq!(restored.list_spaces(None).await.unwrap().len(), 42);
+    drop(restored);
+    drop(s);
+    let _ = std::fs::remove_dir_all(&root);
 }

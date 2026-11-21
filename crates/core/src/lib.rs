@@ -4,16 +4,32 @@
 //! can be unit-tested quickly and reused by every front end (desktop, LAN
 //! server, Android).
 
+pub mod booking;
+pub mod dates;
 pub mod grid;
 pub mod ids;
+pub mod money;
 pub mod property;
+pub mod rates;
 pub mod validation;
 
 // Re-export the main types so callers can write `booker_core::Floor`
 // instead of `booker_core::property::Floor`.
+pub use booking::{
+    Booking, BookingDetail, BookingListItem, BookingRoom, BookingSource, BookingStatus, ChartEntry,
+    Guest, Occupancy, RoomPricing, format_reference, free_rooms, validate_booking, validate_guest,
+};
+pub use dates::{DateRange, MAX_NIGHTS, iso_weekday};
 pub use grid::{GridRect, MAX_GRID_CELLS};
-pub use ids::{FloorId, RoomTypeId, SpaceId};
+pub use ids::{
+    BoardOptionId, BookingId, BookingRoomId, FloorId, GuestId, RateRuleId, RoomTypeId, SpaceId,
+};
+pub use money::Money;
 pub use property::{Floor, PropertySettings, RoomType, Space, SpaceKind, SuiteCapacities};
+pub use rates::{
+    Adjustment, BoardOption, NightPrice, RateRule, StayQuote, quote_stay, room_rate_for_night,
+    validate_board_option, validate_rate_rule,
+};
 pub use validation::{
     ValidationError, ValidationResult, validate_floor, validate_floor_delete, validate_room_type,
     validate_room_type_delete, validate_settings, validate_space,

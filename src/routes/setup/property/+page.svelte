@@ -85,6 +85,15 @@
           required
         />
       </div>
+      <div class="row">
+        <TextField
+          label="Check-in from"
+          type="time"
+          bind:value={settings.check_in_time}
+          required
+        />
+        <TextField label="Check-out by" type="time" bind:value={settings.check_out_time} required />
+      </div>
       <div>
         <Button type="submit" data-variant="solid">Save details</Button>
       </div>

@@ -43,6 +43,34 @@ pub enum ValidationError {
     FloorNotEmpty { floor: String, count: usize },
     #[error("Room type \"{room_type}\" is used by {count} room(s); change them first")]
     RoomTypeInUse { room_type: String, count: usize },
+    #[error("Times must be in 24-hour HH:MM format, e.g. 15:00")]
+    InvalidTime,
+    #[error("{field} can't be negative")]
+    NegativeAmount { field: &'static str },
+    #[error("The departure date must be after the arrival date (and within a year)")]
+    InvalidStay,
+    #[error("A rate rule's end date must be on or after its start date")]
+    InvalidRuleDates,
+    #[error("Weekdays must be numbers 1 (Monday) to 7 (Sunday)")]
+    InvalidWeekday,
+    #[error("A booking needs at least one room")]
+    NoRooms,
+    #[error("Each room needs at least one adult")]
+    NoAdults,
+    #[error("Room {room} sleeps at most {max}")]
+    TooManyGuests { room: String, max: u8 },
+    #[error("\"{space}\" isn't a bedroom")]
+    NotABedroom { space: String },
+    #[error("Room {room} is out of service")]
+    OutOfService { room: String },
+    #[error("Room {room} is in this booking twice for the same nights")]
+    RoomBookedTwice { room: String },
+    #[error("Room {room} is already booked on the night of {night}")]
+    RoomUnavailable { room: String, night: String },
+    #[error("A booking can't go from {from} to {to}")]
+    InvalidStatusChange { from: String, to: String },
+    #[error("The guest needs a first or last name")]
+    GuestNameRequired,
 }
 
 pub type ValidationResult = Result<(), ValidationError>;
@@ -67,7 +95,22 @@ pub fn validate_settings(settings: &PropertySettings) -> ValidationResult {
     if currency.len() != 3 || !currency.chars().all(|c| c.is_ascii_uppercase()) {
         return Err(ValidationError::InvalidCurrency);
     }
-    require(&settings.timezone, "Time zone")
+    require(&settings.timezone, "Time zone")?;
+    for t in [&settings.check_in_time, &settings.check_out_time] {
+        if !is_hh_mm(t) {
+            return Err(ValidationError::InvalidTime);
+        }
+    }
+    Ok(())
+}
+
+/// "15:00" style 24-hour time.
+fn is_hh_mm(s: &str) -> bool {
+    let Some((h, m)) = s.split_once(':') else {
+        return false;
+    };
+    let ok = |part: &str, max: u32| part.len() == 2 && part.parse::<u32>().is_ok_and(|n| n <= max);
+    ok(h, 23) && ok(m, 59)
 }
 
 /// `others` = all existing floors (the floor being saved may be among them).
@@ -108,6 +151,15 @@ pub fn validate_room_type(room_type: &RoomType, others: &[RoomType]) -> Validati
     require(&room_type.code, "Room type code")?;
     if room_type.default_occupancy == 0 || room_type.default_occupancy > room_type.max_occupancy {
         return Err(ValidationError::InvalidOccupancy);
+    }
+    for (amount, field) in [
+        (room_type.base_rate, "Nightly rate"),
+        (room_type.extra_adult_rate, "Extra adult rate"),
+        (room_type.child_rate, "Child rate"),
+    ] {
+        if amount.0 < 0 {
+            return Err(ValidationError::NegativeAmount { field });
+        }
     }
     for other in others.iter().filter(|o| o.id != room_type.id) {
         if same_name(&other.name, &room_type.name) {
@@ -225,6 +277,9 @@ mod tests {
             default_occupancy: 2,
             max_occupancy: 3,
             description: String::new(),
+            base_rate: crate::Money(9000),
+            extra_adult_rate: crate::Money::ZERO,
+            child_rate: crate::Money::ZERO,
         }
     }
 
@@ -233,6 +288,33 @@ mod tests {
     #[test]
     fn default_settings_are_valid() {
         assert_eq!(validate_settings(&PropertySettings::default()), Ok(()));
+    }
+
+    #[test]
+    fn check_in_and_out_times_are_hh_mm() {
+        for bad in ["3pm", "15:0", "24:00", "15:60", ""] {
+            let s = PropertySettings {
+                check_in_time: bad.into(),
+                ..Default::default()
+            };
+            assert_eq!(
+                validate_settings(&s),
+                Err(ValidationError::InvalidTime),
+                "{bad}"
+            );
+        }
+    }
+
+    #[test]
+    fn room_type_prices_cannot_be_negative() {
+        let mut rt = room_type("Double", "DBL");
+        rt.child_rate = crate::Money(-1);
+        assert_eq!(
+            validate_room_type(&rt, &[]),
+            Err(ValidationError::NegativeAmount {
+                field: "Child rate"
+            })
+        );
     }
 
     #[test]

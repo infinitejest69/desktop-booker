@@ -1,8 +1,9 @@
-import { expect, rectOf, test } from "./fixtures";
+import { expect, openSetup, rectOf, test } from "./fixtures";
 
 const CELL = 28;
 
 test("empty hotel offers the demo, which shows on the floor plan", async ({ demoHotel: page }) => {
+  await page.getByRole("link", { name: "Floor plan", exact: true }).click();
   await expect(page.getByText("4 bedrooms · 1 function suites · 1 floors")).toBeVisible();
   const rooms = page.getByRole("list", { name: "Ground floor rooms" });
   await expect(rooms.getByRole("listitem")).toHaveCount(5);
@@ -11,7 +12,7 @@ test("empty hotel offers the demo, which shows on the floor plan", async ({ demo
 
 test.describe("layout editor", () => {
   test.beforeEach(async ({ demoHotel: page }) => {
-    await page.getByRole("link", { name: "Layout editor" }).click();
+    await openSetup(page, "Layout editor");
     await expect(page.getByRole("group", { name: "Ground floor layout" })).toBeVisible();
   });
 
@@ -67,7 +68,7 @@ test.describe("layout editor", () => {
 
 test("setup pages load", async ({ demoHotel: page }) => {
   for (const name of ["Floors", "Room types", "Hotel details"]) {
-    await page.getByRole("link", { name, exact: true }).click();
+    await openSetup(page, name);
     await expect(page.getByRole("heading", { level: 1, name })).toBeVisible();
   }
   await expect(page.getByRole("textbox", { name: "Hotel name" })).toHaveValue("The Grange");

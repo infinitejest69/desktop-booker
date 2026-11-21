@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::grid::GridRect;
 use crate::ids::{FloorId, RoomTypeId, SpaceId};
+use crate::money::Money;
 
 /// Hotel-wide settings (there is exactly one of these).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -17,6 +18,10 @@ pub struct PropertySettings {
     pub currency: String,
     /// IANA time zone, e.g. "Europe/London".
     pub timezone: String,
+    /// Usual arrival time, "HH:MM".
+    pub check_in_time: String,
+    /// Usual departure time, "HH:MM".
+    pub check_out_time: String,
 }
 
 impl Default for PropertySettings {
@@ -28,6 +33,8 @@ impl Default for PropertySettings {
             email: String::new(),
             currency: "GBP".into(),
             timezone: "Europe/London".into(),
+            check_in_time: "15:00".into(),
+            check_out_time: "11:00".into(),
         }
     }
 }
@@ -57,6 +64,12 @@ pub struct RoomType {
     pub default_occupancy: u8,
     pub max_occupancy: u8,
     pub description: String,
+    /// Price per room per night before any rate rules.
+    pub base_rate: Money,
+    /// Per night, for each adult above `default_occupancy`.
+    pub extra_adult_rate: Money,
+    /// Per night, for each child.
+    pub child_rate: Money,
 }
 
 /// Whether a space is a bedroom or a function suite.

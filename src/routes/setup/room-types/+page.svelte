@@ -3,7 +3,9 @@
   import { confirm } from "@ui-sdk/svelte/alert-dialog";
   import { Button } from "@ui-sdk/svelte/button";
   import { toast } from "@ui-sdk/svelte/toast";
+  import MoneyField from "#lib/components/MoneyField.svelte";
   import NumberField from "#lib/components/NumberField.svelte";
+  import { formatMoney } from "#lib/format.ts";
   import TextField from "#lib/components/TextField.svelte";
   import { api, errorMessage, newId } from "#lib/api.ts";
   import type { RoomType } from "#lib/bindings/RoomType.ts";
@@ -20,6 +22,9 @@
       default_occupancy: 2,
       max_occupancy: 2,
       description: "",
+      base_rate: 9000,
+      extra_adult_rate: 0,
+      child_rate: 0,
     };
   }
 
@@ -74,7 +79,7 @@
       {#if roomTypes.length}
         <table class="list">
           <thead>
-            <tr><th>Name</th><th>Code</th><th>Guests</th><th><span class="muted">Actions</span></th></tr>
+            <tr><th>Name</th><th>Code</th><th>Guests</th><th>Per night</th><th><span class="muted">Actions</span></th></tr>
           </thead>
           <tbody>
             {#each roomTypes as rt (rt.id)}
@@ -82,6 +87,7 @@
                 <td>{rt.name}</td>
                 <td>{rt.code}</td>
                 <td>{rt.default_occupancy}–{rt.max_occupancy}</td>
+                <td>{formatMoney(rt.base_rate)}</td>
                 <td class="actions">
                   <Button onclick={() => (draft = { ...rt })}>Edit</Button>
                   <Button data-variant="destructive" onclick={() => remove(rt)}>Delete</Button>
@@ -111,6 +117,19 @@
       <div class="row">
         <NumberField label="Usual guests" bind:value={draft.default_occupancy} min={1} max={20} />
         <NumberField label="Maximum guests" bind:value={draft.max_occupancy} min={1} max={20} />
+      </div>
+      <MoneyField
+        label="Room rate per night"
+        bind:value={draft.base_rate}
+        description="Before seasonal or weekend rules"
+      />
+      <div class="row">
+        <MoneyField
+          label="Extra adult per night"
+          bind:value={draft.extra_adult_rate}
+          description="Each adult above usual guests"
+        />
+        <MoneyField label="Child per night" bind:value={draft.child_rate} />
       </div>
       <TextField label="Description" bind:value={draft.description} />
       <div class="row">
