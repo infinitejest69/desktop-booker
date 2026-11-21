@@ -602,6 +602,17 @@
     },
     save_event: ({ event, organiser }) => saveEvent(event, organiser),
 
+    // Invoicing: minimal stand-ins until the Phase 5 UI tests are written.
+    list_tax_rates: () => [],
+    get_invoice_settings: () => ({
+      prices_include_tax: true, prefix: "INV-", footer: "",
+      accommodation_rate: null, board_rate: null, suite_rate: null, food_rate: null, drink_rate: null, other_rate: null,
+    }),
+    get_folio: ({ owner }) => ({
+      owner, title: "", bill_to: "", lines: [], payments: [], prices_include_tax: true, invoices: [],
+      totals: { lines: [], net: 0, tax: 0, gross: 0, by_rate: [], deposits: 0, paid: 0, balance: 0 },
+    }),
+
     session_status: () => ({
       needs_setup: db.users.length === 0,
       user: current,

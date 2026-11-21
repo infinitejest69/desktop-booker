@@ -4,6 +4,7 @@
   import { page } from "$app/state";
   import BookingEditor from "#lib/booking/BookingEditor.svelte";
   import BookingSummary from "#lib/booking/BookingSummary.svelte";
+  import FolioPanel from "#lib/invoices/FolioPanel.svelte";
   import Breadcrumbs from "#lib/nav/Breadcrumbs.svelte";
   import { api, errorMessage } from "#lib/api.ts";
   import type { BookingDetail } from "#lib/bindings/BookingDetail.ts";
@@ -67,6 +68,9 @@
       <section class="panel" style="max-width: 52rem" aria-label="Summary">
         <BookingSummary {detail} {roomNames} onChange={(d) => (detail = d)} />
       </section>
+      {#key detail}
+        <div style="max-width: 52rem"><FolioPanel owner={{ kind: "booking", id: detail.booking.id }} /></div>
+      {/key}
     {/if}
   {:else}
     <p class="muted">Loading…</p>

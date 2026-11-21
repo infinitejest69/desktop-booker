@@ -285,3 +285,21 @@ a.link-button:focus-visible {
     animation-duration: 0.01ms !important;
   }
 }
+
+/* Printing (invoices): only the page content, on white. */
+@media print {
+  .shell > nav,
+  .topbar,
+  .no-print,
+  [data-sonner-toaster],
+  [data-slot="toast-region"] {
+    display: none !important;
+  }
+
+  body,
+  .shell,
+  .content {
+    background: #fff !important;
+    display: block !important;
+  }
+}

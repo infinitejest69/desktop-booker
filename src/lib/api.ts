@@ -32,6 +32,15 @@ import type { SuiteBookingEntry } from "./bindings/SuiteBookingEntry";
 import type { SuiteBookingId } from "./bindings/SuiteBookingId";
 import type { SuiteBookingStatus } from "./bindings/SuiteBookingStatus";
 import type { SuiteRates } from "./bindings/SuiteRates";
+import type { Charge } from "./bindings/Charge";
+import type { ChargeId } from "./bindings/ChargeId";
+import type { Folio } from "./bindings/Folio";
+import type { FolioOwner } from "./bindings/FolioOwner";
+import type { Invoice } from "./bindings/Invoice";
+import type { InvoiceId } from "./bindings/InvoiceId";
+import type { InvoiceSettings } from "./bindings/InvoiceSettings";
+import type { Payment } from "./bindings/Payment";
+import type { TaxRate } from "./bindings/TaxRate";
 
 export type ErrorKind = "validation" | "not_found" | "internal" | "locked" | "forbidden";
 
@@ -144,4 +153,15 @@ export const api = {
   listEvents: (from: string) => call<EventListItem[]>("list_events", { from }),
   getEvent: (id: EventId) => call<EventDetail>("get_event", { id }),
   saveEvent: (event: Event, organiser: Guest) => call<EventDetail>("save_event", { event, organiser }),
+
+  listTaxRates: () => call<TaxRate[]>("list_tax_rates"),
+  saveTaxRate: (rate: TaxRate) => call<void>("save_tax_rate", { rate }),
+  getInvoiceSettings: () => call<InvoiceSettings>("get_invoice_settings"),
+  saveInvoiceSettings: (settings: InvoiceSettings) => call<void>("save_invoice_settings", { settings }),
+  getFolio: (owner: FolioOwner) => call<Folio>("get_folio", { owner }),
+  addCharge: (owner: FolioOwner, charge: Charge) => call<Folio>("add_charge", { owner, charge }),
+  removeCharge: (id: ChargeId) => call<Folio>("remove_charge", { id }),
+  addPayment: (owner: FolioOwner, payment: Payment) => call<Folio>("add_payment", { owner, payment }),
+  issueInvoice: (owner: FolioOwner) => call<Invoice>("issue_invoice", { owner }),
+  getInvoice: (id: InvoiceId) => call<Invoice>("get_invoice", { id }),
 };

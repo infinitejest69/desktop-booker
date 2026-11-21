@@ -8,6 +8,7 @@
   import { statusLabel } from "#lib/booking/status.ts";
   import { daysBetween, formatDay } from "#lib/dates.ts";
   import { formatMoney } from "#lib/format.ts";
+  import FolioPanel from "#lib/invoices/FolioPanel.svelte";
   import Breadcrumbs from "#lib/nav/Breadcrumbs.svelte";
   import { eventKindLabel, layoutLabel, pricingLabel, suiteStatusLabel, timePart } from "#lib/suites/suites.ts";
 
@@ -172,6 +173,7 @@
         <p class="muted">No rooms held for guests.</p>
       {/if}
     </section>
+    <FolioPanel owner={{ kind: "event", id: e.id }} />
   {:else}
     <p class="muted">Loading…</p>
   {/if}

@@ -432,6 +432,19 @@ async fn seed_demo_includes_rates_and_bookings() {
     assert_eq!(detail.suites.len(), 2);
     assert_eq!(detail.event.sittings.len(), 2);
     assert!(detail.held_rooms > 0, "the wedding holds some rooms");
+    // Demo VAT: rooms are taxed at 20% on the folio.
+    use booker_store::InvoiceRepo;
+    assert_eq!(store.list_tax_rates().await.unwrap().len(), 3);
+    let folio = store
+        .get_folio(booker_core::FolioOwner::Booking(chart[0].booking_id))
+        .await
+        .unwrap();
+    assert!(
+        folio
+            .lines
+            .iter()
+            .any(|l| l.charge.tax_basis_points == 2000)
+    );
     // Seeding events again does nothing.
     assert!(!store.seed_demo_events().await.unwrap());
     // Demo stays come with a mix of boards, including room only.

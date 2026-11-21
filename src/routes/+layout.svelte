@@ -117,6 +117,7 @@
     { href: "/setup/floors", label: "Floors and layout" },
     { href: "/setup/room-types", label: "Room types" },
     { href: "/setup/rates", label: "Rates" },
+    { href: "/setup/invoicing", label: "Invoices and tax" },
     { href: "/setup/users", label: "Users" },
     { href: "/setup/audit", label: "Audit log" },
   ];

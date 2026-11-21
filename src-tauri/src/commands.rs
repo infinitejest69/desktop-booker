@@ -473,7 +473,9 @@ pub async fn seed_demo_data(store: Store<'_>, session: Sess<'_>) -> CmdResult<bo
     session.require(&store, Permission::ManageSetup)?;
     // A new demo hotel comes with events; an existing one gets them added.
     let hotel = store.seed_demo().await?;
-    Ok(hotel || store.seed_demo_events().await?)
+    let events = store.seed_demo_events().await?;
+    let invoicing = store.seed_demo_invoicing().await?;
+    Ok(hotel || events || invoicing)
 }
 
 // ---------------------------------------------------------------------------

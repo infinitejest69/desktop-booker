@@ -11,7 +11,7 @@ use chrono::{Datelike, Days, Local, NaiveDate, NaiveDateTime, NaiveTime, Weekday
 
 use crate::StoreError;
 use crate::repo::{
-    BookingRepo, EventRepo, FloorRepo, RateRepo, RoomTypeRepo, SpaceRepo, SuiteRepo,
+    BookingRepo, EventRepo, FloorRepo, InvoiceRepo, RateRepo, RoomTypeRepo, SpaceRepo, SuiteRepo,
 };
 use crate::{SqliteStore, StoreResult};
 
@@ -140,6 +140,75 @@ impl SqliteStore {
         }
         self.seed_rates_and_bookings().await?;
         self.seed_demo_events().await?;
+        self.seed_demo_invoicing().await?;
+        Ok(true)
+    }
+
+    /// Adds UK VAT rates, invoice settings and a few bar charges on in-house
+    /// guests' bills. Does nothing (returns `false`) if tax rates exist.
+    pub async fn seed_demo_invoicing(&self) -> StoreResult<bool> {
+        if !self.list_tax_rates().await?.is_empty() {
+            return Ok(false);
+        }
+        let rate = |name: &str, basis_points| booker_core::TaxRate {
+            id: booker_core::TaxRateId::new(),
+            name: name.into(),
+            basis_points,
+        };
+        let standard = rate("Standard VAT", 2000);
+        for r in [&standard, &rate("Reduced VAT", 500), &rate("Zero rated", 0)] {
+            self.save_tax_rate(r).await?;
+        }
+        let all = Some(standard.id);
+        self.save_invoice_settings(&booker_core::InvoiceSettings {
+            prices_include_tax: true,
+            prefix: "INV-".into(),
+            footer: "VAT no. GB 123 4567 89\nBank transfer: The Grange Ltd, sort code 12-34-56, \
+                     account 12345678\nThank you for staying with us."
+                .into(),
+            accommodation_rate: all,
+            board_rate: all,
+            suite_rate: all,
+            food_rate: all,
+            drink_rate: all,
+            other_rate: all,
+        })
+        .await?;
+
+        // A bar tab for a few guests who are in the house tonight.
+        let today = Local::now().date_naive();
+        let in_house: Vec<_> = self
+            .chart(today, today.succ_opt().unwrap_or(today))
+            .await?
+            .into_iter()
+            .filter(|e| e.status == BookingStatus::CheckedIn)
+            .take(4)
+            .collect();
+        for (i, e) in in_house.iter().enumerate() {
+            let owner = booker_core::FolioOwner::Booking(e.booking_id);
+            for (what, category, pence) in [
+                (
+                    "Bar",
+                    booker_core::ChargeCategory::Drink,
+                    1_450 + 300 * i as i64,
+                ),
+                ("Dinner", booker_core::ChargeCategory::Food, 5_200),
+            ] {
+                self.add_charge(
+                    owner,
+                    &booker_core::Charge {
+                        id: booker_core::ChargeId::new(),
+                        date: today,
+                        category,
+                        description: what.into(),
+                        quantity: 1,
+                        unit_price: Money(pence),
+                        tax_basis_points: 2000,
+                    },
+                )
+                .await?;
+            }
+        }
         Ok(true)
     }
 

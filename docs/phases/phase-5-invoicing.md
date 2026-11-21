@@ -10,10 +10,10 @@
 - [x] Extras/charges on a booking (bar, restaurant, misc.)
 - [x] Deposits and part payments; payment methods (cash/card/bank transfer) recorded only
 - [x] Balance due, overpayment/refund handling
-- [ ] **Spike:** PDF in Rust (`genpdf`/`printpdf`) vs HTML → print-to-PDF; record the choice as an ADR
+- [x] **Spike:** PDF in Rust (`genpdf`/`printpdf`) vs HTML → print-to-PDF; record the choice as an ADR
 - [ ] PDF invoice + receipt with hotel logo/details
-- [ ] Settings: currency, tax rates, invoice footer/bank details
-- [ ] UI: booking folio (charges, payments, balance), issue invoice
+- [x] Settings: currency, tax rates, invoice footer/bank details
+- [x] UI: booking folio (charges, payments, balance), issue invoice
 - [x] Tests: tax rounding, mixed tax rates, deposits
 
 ## Acceptance
@@ -35,5 +35,15 @@
 - Issuing an invoice takes the next number inside the same transaction and stores the whole invoice as JSON, so it never changes afterwards; a later extra goes on the next invoice. An empty folio can't be invoiced (and uses no number).
 - Commands: `list/save_tax_rate`, `get/save_invoice_settings` (admin), `get_folio`, `add_charge`, `add_payment`, `issue_invoice` (staff), `remove_charge` (cancel permission), `get_invoice`.
 
-**Next:** settings screen for tax rates and invoice options; folio panel on the booking and event pages (charges, payments, balance, issue invoice); printable invoice page and the PDF ADR; fake backend and Playwright tests.
+**UI (2026-11-21):**
+- **Bill** panel on the booking and event pages: worked-out lines plus extras (removable), VAT per rate, paid, balance or credit; add an extra; record a payment, deposit or refund; issue an invoice; links to issued invoices.
+- **Invoice page** (`/invoices/[id]`): hotel details, bill-to, lines, VAT summary, payments, balance and footer, black on white; **Print or save as PDF** uses the system print dialog ([ADR 0004](../decisions/0004-invoice-pdf-via-print.md)). Print CSS hides the app's menus.
+- **My hotel → Invoices and tax:** add tax rates, choose the rate for each kind of charge, prices include tax or not, number prefix, footer.
+- **Demo data:** Standard (20%), Reduced (5%) and Zero rated; 20% on everything; footer with VAT number and bank details; bar and dinner charges on a few in-house guests' bills.
+
+## Status at pause (2026-11-21)
+**Left in this phase:**
+1. Check printing to PDF on Windows and Linux (the acceptance test), then tick "PDF invoice + receipt".
+2. Playwright tests for the bill, payments and invoice page. The fake backend has only empty stand-ins for `get_folio`, `list_tax_rates` and `get_invoice_settings` so far.
+3. A quick look at the bill panel and invoice page in the real app (not yet screenshotted).
 
