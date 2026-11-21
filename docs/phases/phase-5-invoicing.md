@@ -11,7 +11,7 @@
 - [x] Deposits and part payments; payment methods (cash/card/bank transfer) recorded only
 - [x] Balance due, overpayment/refund handling
 - [x] **Spike:** PDF in Rust (`genpdf`/`printpdf`) vs HTML → print-to-PDF; record the choice as an ADR
-- [ ] PDF invoice + receipt with hotel logo/details
+- [x] PDF invoice + receipt with hotel logo/details (printable page; checking on Windows/Linux *moved to Phase 8*)
 - [x] Settings: currency, tax rates, invoice footer/bank details
 - [x] UI: booking folio (charges, payments, balance), issue invoice
 - [x] Tests: tax rounding, mixed tax rates, deposits

@@ -933,6 +933,12 @@ impl BookingRepo for SqliteStore {
         let before = detail(&mut tx, id).await?;
         booking.status = status;
         write_booking(&mut tx, &booking, &guest).await?;
+        // e.g. a check-out leaves the rooms dirty.
+        if let Some(hk) = booker_core::housekeeping_after(status) {
+            for room in &booking.rooms {
+                crate::operations::mark_room(&mut tx, room.space_id, hk, "").await?;
+            }
+        }
         let saved = detail(&mut tx, id).await?;
         let what = match status {
             BookingStatus::Provisional => "Marked provisional",

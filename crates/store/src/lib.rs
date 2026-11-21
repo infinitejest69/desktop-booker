@@ -8,6 +8,7 @@ mod bookings;
 mod error;
 mod events;
 mod invoicing;
+mod operations;
 pub mod repo;
 mod rows;
 mod seed;
@@ -16,7 +17,7 @@ mod users;
 
 pub use error::{StoreError, StoreResult};
 pub use repo::{
-    BookingRepo, EventRepo, FloorRepo, GuestRepo, InvoiceRepo, RateRepo, RoomTypeRepo,
-    SettingsRepo, SpaceRepo, SuiteRepo,
+    BookingRepo, EventRepo, FloorRepo, GuestRepo, InvoiceRepo, OperationsRepo, RateRepo,
+    RoomTypeRepo, SettingsRepo, SpaceRepo, SuiteRepo,
 };
 pub use sqlite::{Actor, SqliteStore};

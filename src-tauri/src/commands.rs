@@ -16,10 +16,14 @@ use booker_core::{
     SessionStatus, Space, SpaceId, StayQuote, SuiteBooking, SuiteBookingEntry, SuiteBookingId,
     SuiteBookingStatus, SuitePricing, SuiteRates, TaxRate, User, UserId, validate_pin,
 };
+use booker_core::{
+    DayOccupancy, GuestId, GuestProfile, HousekeepingStatus, MonthRevenue, RoomHousekeeping,
+    csv_money, occupancy_total, to_csv,
+};
 use booker_services::pin::{hash_pin, verify_pin};
 use booker_store::{
-    BookingRepo, EventRepo, FloorRepo, GuestRepo, InvoiceRepo, RateRepo, RoomTypeRepo,
-    SettingsRepo, SpaceRepo, SqliteStore, StoreError, SuiteRepo,
+    BookingRepo, EventRepo, FloorRepo, GuestRepo, InvoiceRepo, OperationsRepo, RateRepo,
+    RoomTypeRepo, SettingsRepo, SpaceRepo, SqliteStore, StoreError, SuiteRepo,
 };
 use chrono::{NaiveDate, NaiveDateTime};
 use tauri::State;
@@ -730,5 +734,147 @@ pub async fn get_invoice(store: Store<'_>, session: Sess<'_>, id: InvoiceId) -> 
     Ok(session
         .require(&store, Permission::ViewHotel)?
         .get_invoice(id)
+        .await?)
+}
+
+// ---------------------------------------------------------------------------
+// Housekeeping, reports and guests
+// ---------------------------------------------------------------------------
+
+#[tauri::command]
+pub async fn list_housekeeping(
+    store: Store<'_>,
+    session: Sess<'_>,
+) -> CmdResult<Vec<RoomHousekeeping>> {
+    Ok(session
+        .require(&store, Permission::ViewHotel)?
+        .list_housekeeping()
+        .await?)
+}
+
+#[tauri::command]
+pub async fn set_housekeeping(
+    store: Store<'_>,
+    session: Sess<'_>,
+    space: SpaceId,
+    status: HousekeepingStatus,
+    note: String,
+) -> CmdResult<()> {
+    Ok(session
+        .require(&store, Permission::MakeBookings)?
+        .set_housekeeping(space, status, &note)
+        .await?)
+}
+
+#[tauri::command]
+pub async fn occupancy_report(
+    store: Store<'_>,
+    session: Sess<'_>,
+    period: DateRange,
+) -> CmdResult<Vec<DayOccupancy>> {
+    Ok(session
+        .require(&store, Permission::ViewHotel)?
+        .occupancy_report(period)
+        .await?)
+}
+
+/// Revenue is for admins: it shows the hotel's takings.
+#[tauri::command]
+pub async fn revenue_report(
+    store: Store<'_>,
+    session: Sess<'_>,
+    period: DateRange,
+) -> CmdResult<Vec<MonthRevenue>> {
+    Ok(session
+        .require(&store, Permission::ViewAudit)?
+        .revenue_report(period)
+        .await?)
+}
+
+/// A report as CSV text, for spreadsheets.
+#[tauri::command]
+pub async fn report_csv(
+    store: Store<'_>,
+    session: Sess<'_>,
+    report: String,
+    period: DateRange,
+) -> CmdResult<String> {
+    match report.as_str() {
+        "occupancy" => {
+            let days = session
+                .require(&store, Permission::ViewHotel)?
+                .occupancy_report(period)
+                .await?;
+            let pct = |d: &DayOccupancy| format!("{}.{}", d.per_mille / 10, d.per_mille % 10);
+            let mut rows: Vec<Vec<String>> = days
+                .iter()
+                .map(|d| {
+                    vec![
+                        d.date.to_string(),
+                        d.occupied.to_string(),
+                        d.rooms.to_string(),
+                        pct(d),
+                    ]
+                })
+                .collect();
+            let total = occupancy_total(&days);
+            rows.push(vec![
+                "Total".into(),
+                total.occupied.to_string(),
+                total.rooms.to_string(),
+                pct(&total),
+            ]);
+            Ok(to_csv(
+                &["Night", "Rooms sold", "Rooms", "Occupancy %"],
+                &rows,
+            ))
+        }
+        "revenue" => {
+            let months = session
+                .require(&store, Permission::ViewAudit)?
+                .revenue_report(period)
+                .await?;
+            let rows: Vec<Vec<String>> = months
+                .iter()
+                .map(|m| {
+                    vec![
+                        format!("{}-{:02}", m.year, m.month),
+                        csv_money(m.rooms),
+                        csv_money(m.board),
+                        csv_money(m.suites),
+                        csv_money(m.extras),
+                        csv_money(m.total),
+                    ]
+                })
+                .collect();
+            Ok(to_csv(
+                &["Month", "Rooms", "Board", "Suites", "Extras", "Total"],
+                &rows,
+            ))
+        }
+        other => Err(CommandError::validation(format!(
+            "Unknown report {other:?}"
+        ))),
+    }
+}
+
+#[tauri::command]
+pub async fn guest_profile(
+    store: Store<'_>,
+    session: Sess<'_>,
+    id: GuestId,
+) -> CmdResult<GuestProfile> {
+    Ok(session
+        .require(&store, Permission::ViewHotel)?
+        .guest_profile(id)
+        .await?)
+}
+
+/// GDPR erasure: admin only, and it can't be undone.
+#[tauri::command]
+pub async fn erase_guest(store: Store<'_>, session: Sess<'_>, id: GuestId) -> CmdResult<()> {
+    Ok(session
+        .require(&store, Permission::ManageSetup)?
+        .erase_guest(id)
         .await?)
 }

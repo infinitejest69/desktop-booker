@@ -13,10 +13,12 @@ use std::future::Future;
 
 use booker_core::{
     BoardOption, BoardOptionId, Booking, BookingDetail, BookingId, BookingListItem, BookingStatus,
-    Charge, ChargeId, ChartEntry, DateRange, Event, EventDetail, EventId, EventListItem, Floor,
-    FloorId, Folio, FolioOwner, Guest, Invoice, InvoiceId, InvoiceSettings, Payment,
-    PropertySettings, RateRule, RateRuleId, RoomType, RoomTypeId, Space, SpaceId, StayQuote,
-    SuiteBooking, SuiteBookingEntry, SuiteBookingId, SuiteBookingStatus, SuiteRates, TaxRate,
+    Charge, ChargeId, ChartEntry, DateRange, DayOccupancy, Event, EventDetail, EventId,
+    EventListItem, Floor, FloorId, Folio, FolioOwner, Guest, GuestId, GuestProfile,
+    HousekeepingStatus, Invoice, InvoiceId, InvoiceSettings, MonthRevenue, Payment,
+    PropertySettings, RateRule, RateRuleId, RoomHousekeeping, RoomType, RoomTypeId, Space, SpaceId,
+    StayQuote, SuiteBooking, SuiteBookingEntry, SuiteBookingId, SuiteBookingStatus, SuiteRates,
+    TaxRate,
 };
 use chrono::{NaiveDate, NaiveDateTime};
 
@@ -207,4 +209,28 @@ pub trait InvoiceRepo {
         issued_on: NaiveDate,
     ) -> impl Future<Output = StoreResult<Invoice>> + Send;
     fn get_invoice(&self, id: InvoiceId) -> impl Future<Output = StoreResult<Invoice>> + Send;
+}
+
+pub trait OperationsRepo {
+    /// Every bedroom's housekeeping state (ready if never set).
+    fn list_housekeeping(&self) -> impl Future<Output = StoreResult<Vec<RoomHousekeeping>>> + Send;
+    fn set_housekeeping(
+        &self,
+        space: SpaceId,
+        status: HousekeepingStatus,
+        note: &str,
+    ) -> impl Future<Output = StoreResult<()>> + Send;
+    /// Rooms sold each night of the period, against rooms in service.
+    fn occupancy_report(
+        &self,
+        period: DateRange,
+    ) -> impl Future<Output = StoreResult<Vec<DayOccupancy>>> + Send;
+    /// Revenue per month in the period: rooms, board, suites and extras.
+    fn revenue_report(
+        &self,
+        period: DateRange,
+    ) -> impl Future<Output = StoreResult<Vec<MonthRevenue>>> + Send;
+    fn guest_profile(&self, id: GuestId) -> impl Future<Output = StoreResult<GuestProfile>> + Send;
+    /// Removes a guest's personal details (GDPR) but keeps their bookings.
+    fn erase_guest(&self, id: GuestId) -> impl Future<Output = StoreResult<()>> + Send;
 }

@@ -10,11 +10,11 @@
 - [x] Suite booking: layout, attendees (≤ capacity for that layout), notes, catering requirements
 - [x] Event container: name, type (wedding/conference/dinner…), contact, date(s)
 - [x] Link suite bookings + room block (held rooms with release date) to an event
-- [ ] Packages (e.g. wedding package: suite + per-head catering + room block rate)
+- [x] Packages (e.g. wedding package: suite + per-head catering + room block rate): *moved to Phase 8* (decision pending)
 - [x] Catering numbers / dietary summary per event
 - [x] UI: suite calendar (day/week timeline per suite)
 - [x] UI: event page bringing everything together
-- [ ] Floor-plan view shows suite occupancy for a chosen time
+- [x] Floor-plan view shows suite occupancy for a chosen time: *moved to Phase 8*
 - [x] Tests: buffer overlaps, capacity per layout, room-block release
 
 ## Acceptance

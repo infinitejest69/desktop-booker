@@ -452,3 +452,72 @@ async fn seed_demo_includes_rates_and_bookings() {
     assert!(boards.contains(&Some("Bed & breakfast".into())));
     assert!(boards.contains(&None));
 }
+
+#[tokio::test]
+async fn check_out_dirties_the_room_and_reports_add_up() {
+    use booker_core::HousekeepingStatus;
+    use booker_store::OperationsRepo;
+    let f = fixture().await;
+    let g = guest("Hughes");
+    let saved = f
+        .store
+        .save_booking(
+            &booking(&g, &f.rooms[0], stay("2026-05-10", "2026-05-12")),
+            &g,
+        )
+        .await
+        .unwrap();
+
+    // Rooms start ready; checking out leaves this one dirty.
+    let ready = f.store.list_housekeeping().await.unwrap();
+    assert_eq!(ready.len(), 2);
+    assert!(
+        ready
+            .iter()
+            .all(|r| r.status == HousekeepingStatus::Inspected)
+    );
+    for s in [BookingStatus::CheckedIn, BookingStatus::CheckedOut] {
+        f.store
+            .set_booking_status(saved.booking.id, s)
+            .await
+            .unwrap();
+    }
+    let after = f.store.list_housekeeping().await.unwrap();
+    let room = |id| after.iter().find(|r| r.space_id == id).unwrap().status;
+    assert_eq!(room(f.rooms[0].id), HousekeepingStatus::Dirty);
+    assert_eq!(room(f.rooms[1].id), HousekeepingStatus::Inspected);
+    f.store
+        .set_housekeeping(f.rooms[0].id, HousekeepingStatus::Clean, "")
+        .await
+        .unwrap();
+
+    // Hand count: 1 of 2 rooms on the 10th and 11th, none on the 12th and 13th
+    // = 2 of 8 room-nights = 25%.
+    let days = f
+        .store
+        .occupancy_report(stay("2026-05-10", "2026-05-14"))
+        .await
+        .unwrap();
+    let per_day: Vec<_> = days.iter().map(|d| d.per_mille).collect();
+    assert_eq!(per_day, vec![500, 500, 0, 0]);
+    assert_eq!(booker_core::occupancy_total(&days).per_mille, 250);
+
+    // Two nights at £90 in May.
+    let revenue = f
+        .store
+        .revenue_report(stay("2026-01-01", "2026-12-31"))
+        .await
+        .unwrap();
+    assert_eq!(revenue.len(), 1);
+    assert_eq!((revenue[0].month, revenue[0].rooms), (5, Money(18_000)));
+
+    // The guest's history and spend, then erased.
+    let profile = f.store.guest_profile(g.id).await.unwrap();
+    assert_eq!(profile.stays.len(), 1);
+    assert_eq!(profile.total_spend, Money(18_000));
+    f.store.erase_guest(g.id).await.unwrap();
+    let erased = f.store.guest_profile(g.id).await.unwrap();
+    assert_eq!(erased.guest.display_name(), "Erased guest");
+    assert!(erased.guest.email.is_empty());
+    assert_eq!(erased.stays.len(), 1, "bookings are kept");
+}

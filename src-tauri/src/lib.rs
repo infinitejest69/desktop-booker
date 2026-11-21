@@ -90,6 +90,13 @@ pub fn run() {
             commands::add_payment,
             commands::issue_invoice,
             commands::get_invoice,
+            commands::list_housekeeping,
+            commands::set_housekeeping,
+            commands::occupancy_report,
+            commands::revenue_report,
+            commands::report_csv,
+            commands::guest_profile,
+            commands::erase_guest,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
