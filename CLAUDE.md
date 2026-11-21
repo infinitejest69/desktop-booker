@@ -10,6 +10,7 @@ Offline hotel booking app (Rust + Tauri 2 + Svelte 5 + SQLite). Andy is **learni
 5. Scope and architecture live in [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md). Follow it or propose an ADR to change it.
 
 ## Rules
+- Also follow [AGENTS.md](AGENTS.md) (e.g. ui-sdk usage notes).
 - Business logic goes in `crates/core` (pure, no I/O) with unit tests written first. Tauri commands stay thin.
 - Money is integer minor units. Stays are half-open `[check_in, check_out)`.
 - Every DB table has a UUID PK and `created_at`/`updated_at`/`updated_by`. All access goes through repository traits.

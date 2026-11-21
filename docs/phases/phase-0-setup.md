@@ -40,6 +40,8 @@ gh repo view desktop-booker
 - First CI run failed: adding `packageManager` to `package.json` made the lockfile stale for `--frozen-lockfile`. Fixed in `fix(ci): update lockfile…`.
 - Dependabot (account default) is on. It opened PRs straight away, including a **major** `@sveltejs/kit` 2 → 3 bump, and GitHub reports 10 dependency alerts (2 high).
 
+- **ui-sdk added (2026-11-21):** `@ui-sdk/svelte` + `@ui-sdk/core` `0.1.0-beta.13` (unstyled, accessible UI behaviours: keyboard, focus, ARIA, popups). Pinned exactly because it is beta. Agent usage notes are in `AGENTS.md`; the `ui-sdk` skill is in `.agents/skills/` (linked from `.claude/skills/`).
+
 ## Status at pause (2026-11-18)
 - Locally verified: `pnpm check`, `pnpm test`, `cargo fmt/clippy/test` all pass; `pnpm tauri dev` builds and opens the window.
 - CI run for `fix(ci)` commit: **Lint & test (Linux) passed**. The ubuntu / windows / macos build jobs were still running at the pause.
