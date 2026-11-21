@@ -28,6 +28,15 @@
     suiteBookings: [],
     suitePrices: {},
     events: [],
+    taxRates: [],
+    invoiceSettings: {
+      prices_include_tax: true, prefix: "INV-", footer: "VAT no. GB 123 4567 89",
+      accommodation_rate: null, board_rate: null, suite_rate: null, food_rate: null, drink_rate: null, other_rate: null,
+    },
+    charges: [],
+    payments: [],
+    invoices: [],
+    invoiceCounter: 0,
   };
   // ?fake=setup starts with no users; ?fake=locked starts signed out.
   const mode = new URLSearchParams(location.search).get("fake");
@@ -220,6 +229,9 @@
     book(guest("Margaret", "Hughes"), db.spaces[1], t, 2, db.boards[1].id);
     book(guest("Tom", "Price"), db.spaces[2], addDays(t, -1), 3, null);
     seedEvents();
+    const standard = { id: id(), name: "Standard VAT", basis_points: 2000 };
+    db.taxRates = [standard, { id: id(), name: "Zero rated", basis_points: 0 }];
+    for (const k of ["accommodation", "board", "suite", "food", "drink", "other"]) db.invoiceSettings[`${k}_rate`] = standard.id;
     return true;
   }
 
@@ -421,12 +433,79 @@
     return true;
   }
 
+  const key = (owner) => JSON.stringify({ kind: owner.kind, id: owner.id });
+  const vat = (gross, bp) => Math.round((gross * bp) / (10000 + bp));
+  const rateFor = (category) => {
+    const rid = db.invoiceSettings[`${category}_rate`];
+    return db.taxRates.find((r) => r.id === rid)?.basis_points ?? 0;
+  };
+
+  function folioOf(owner) {
+    let title = "";
+    let billTo = "";
+    let automatic = [];
+    if (owner.kind === "booking") {
+      const b = db.bookings.find((x) => x.booking.id === owner.id);
+      const d = detailOf(b);
+      title = `Booking ${b.booking.reference}`;
+      billTo = guestName(b).name;
+      automatic = b.booking.rooms.flatMap((r, i) => {
+        const nights = d.pricing[i].nights.length;
+        if (!nights) return [];
+        const name = db.spaces.find((s) => s.id === r.space_id)?.name;
+        return [{ id: `stay-${r.id}`, date: r.stay.start, category: "accommodation", description: `Room ${name}, ${nights} night${nights === 1 ? "" : "s"}`, quantity: 1, unit_price: d.pricing[i].total, tax_basis_points: rateFor("accommodation") }];
+      });
+    } else if (owner.kind === "event") {
+      const ev = db.events.find((e) => e.id === owner.id);
+      title = ev.name;
+      billTo = db.guests.find((g) => g.id === ev.organiser_id)?.last_name ?? "";
+      automatic = db.suiteBookings
+        .filter((sb) => sb.event_id === ev.id && sb.status !== "cancelled")
+        .map((sb) => ({ id: `suite-${sb.id}`, date: sb.start.slice(0, 10), category: "suite", description: sb.title, quantity: 1, unit_price: db.suitePrices[sb.id], tax_basis_points: rateFor("suite") }));
+    }
+    const extras = db.charges.filter((c) => c.owner === key(owner)).map((c) => c.charge);
+    const lines = [...automatic.map((c) => [c, true]), ...extras.map((c) => [c, false])].map(([charge, automatic]) => {
+      const gross = charge.unit_price * charge.quantity;
+      const tax = vat(gross, charge.tax_basis_points);
+      return { charge, automatic, amounts: { net: gross - tax, tax, gross } };
+    });
+    const payments = db.payments.filter((p) => p.owner === key(owner)).map((p) => p.payment);
+    const byRate = {};
+    for (const l of lines) {
+      const r = (byRate[l.charge.tax_basis_points] ??= { basis_points: l.charge.tax_basis_points, net: 0, tax: 0 });
+      r.net += l.amounts.net;
+      r.tax += l.amounts.tax;
+    }
+    const sum = (xs) => xs.reduce((n, x) => n + x, 0);
+    const gross = sum(lines.map((l) => l.amounts.gross));
+    const paid = sum(payments.map((p) => p.amount));
+    return {
+      owner,
+      title,
+      bill_to: billTo,
+      lines,
+      payments,
+      prices_include_tax: true,
+      invoices: db.invoices.filter((i) => key(i.owner) === key(owner)).map((i) => ({ id: i.id, number: i.number, issued_on: i.issued_on, gross: i.totals.gross })),
+      totals: {
+        lines: lines.map((l) => l.amounts),
+        net: sum(lines.map((l) => l.amounts.net)),
+        tax: sum(lines.map((l) => l.amounts.tax)),
+        gross,
+        by_rate: Object.values(byRate).sort((a, b) => a.basis_points - b.basis_points),
+        deposits: sum(payments.filter((p) => p.is_deposit).map((p) => p.amount)),
+        paid,
+        balance: gross - paid,
+      },
+    };
+  }
+
   const PUBLIC = new Set(["app_version", "session_status", "create_first_admin", "login", "logout"]);
   const ADMIN_ONLY = new Set([
     "save_settings", "save_floor", "delete_floor", "save_room_type", "delete_room_type",
     "save_space", "delete_space", "save_rate_rule", "delete_rate_rule", "save_board_option",
     "delete_board_option", "list_users", "save_user", "list_audit", "seed_demo_data",
-    "save_suite_rates",
+    "save_suite_rates", "save_tax_rate", "save_invoice_settings",
   ]);
 
   const guestName = (b) => {
@@ -602,16 +681,58 @@
     },
     save_event: ({ event, organiser }) => saveEvent(event, organiser),
 
-    // Invoicing: minimal stand-ins until the Phase 5 UI tests are written.
-    list_tax_rates: () => [],
-    get_invoice_settings: () => ({
-      prices_include_tax: true, prefix: "INV-", footer: "",
-      accommodation_rate: null, board_rate: null, suite_rate: null, food_rate: null, drink_rate: null, other_rate: null,
-    }),
-    get_folio: ({ owner }) => ({
-      owner, title: "", bill_to: "", lines: [], payments: [], prices_include_tax: true, invoices: [],
-      totals: { lines: [], net: 0, tax: 0, gross: 0, by_rate: [], deposits: 0, paid: 0, balance: 0 },
-    }),
+    // Invoicing (mirrors crates/store/src/invoicing.rs; VAT 20% included in prices).
+    list_tax_rates: () => db.taxRates,
+    get_invoice_settings: () => db.invoiceSettings,
+    save_invoice_settings: ({ settings }) => {
+      db.invoiceSettings = settings;
+    },
+    save_tax_rate: ({ rate }) => {
+      db.taxRates = db.taxRates.filter((r) => r.id !== rate.id).concat(rate);
+    },
+    get_folio: ({ owner }) => folioOf(owner),
+    add_charge: ({ owner, charge }) => {
+      if (!charge.description.trim()) err("Description must not be empty");
+      db.charges.push({ owner: key(owner), charge });
+      return folioOf(owner);
+    },
+    remove_charge: ({ id: chargeId }) => {
+      const found = db.charges.find((c) => c.charge.id === chargeId);
+      db.charges = db.charges.filter((c) => c !== found);
+      return folioOf(JSON.parse(found.owner));
+    },
+    add_payment: ({ owner, payment }) => {
+      const paid = folioOf(owner).totals.paid;
+      if (payment.amount === 0) err("Amount must not be empty");
+      if (payment.amount < 0 && paid + payment.amount < 0) err("A refund can't be more than has been paid");
+      db.payments.push({ owner: key(owner), payment });
+      return folioOf(owner);
+    },
+    issue_invoice: ({ owner }) => {
+      const f = folioOf(owner);
+      if (!f.lines.length) err("The folio must not be empty");
+      const inv = {
+        id: id(),
+        number: `${db.invoiceSettings.prefix}${String(++db.invoiceCounter).padStart(6, "0")}`,
+        owner,
+        issued_on: today(),
+        bill_to: f.bill_to,
+        bill_address: "",
+        title: f.title,
+        lines: f.lines,
+        payments: f.payments,
+        totals: f.totals,
+        prices_include_tax: true,
+        footer: db.invoiceSettings.footer,
+      };
+      db.invoices.push(inv);
+      return inv;
+    },
+    get_invoice: ({ id: invoiceId }) => {
+      const inv = db.invoices.find((i) => i.id === invoiceId);
+      if (!inv) throw { kind: "not_found", message: "Invoice not found" };
+      return inv;
+    },
 
     session_status: () => ({
       needs_setup: db.users.length === 0,

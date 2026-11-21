@@ -44,6 +44,7 @@
 ## Status at pause (2026-11-21)
 **Left in this phase:**
 1. Check printing to PDF on Windows and Linux (the acceptance test), then tick "PDF invoice + receipt".
-2. Playwright tests for the bill, payments and invoice page. The fake backend has only empty stand-ins for `get_folio`, `list_tax_rates` and `get_invoice_settings` so far.
-3. A quick look at the bill panel and invoice page in the real app (not yet screenshotted).
+2. A quick look at the bill panel and invoice page in the real app.
+
+**Done since the pause:** Playwright tests (`e2e/invoicing.e2e.ts`) for the bill (stay with VAT, extras, deposit, refund limit), issuing a numbered invoice and its printable page, and the Invoices and tax settings; the fake backend now mirrors the store's folio and invoices.
 
