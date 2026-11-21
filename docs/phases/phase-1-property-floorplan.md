@@ -37,3 +37,4 @@
 - **Floor-plan editor** is a custom ui-sdk primitive (`src/lib/floor-plan/editor.ts`) built on `createResize`. It works in pixels internally (one snap step = one 28 px cell); the page converts to and from grid cells. Overlaps are refused instantly in the browser (`grid.ts` mirrors the Rust rules) and validated again in Rust on save.
 - **Browser tests use Playwright** (`pnpm test:e2e`, specs in `e2e/*.e2e.ts`). The Tauri backend doesn't exist in a plain browser, so `e2e/fake-backend.js` stands in for it. Locally this uses the system Chromium; CI installs Playwright's own.
 - Demo data has 3 floors, 40 rooms and 2 suites (the plan said 30 rooms).
+- **Closed (2026-11-21):** Andy has some changes in mind and will raise them in a later phase.

@@ -27,3 +27,16 @@
 - The tariff chart stays smooth with 100 rooms × 60 days.
 
 ## Notes / decisions
+**Decisions from Andy (2026-11-21):**
+- Pricing is **per room per night** (not per person).
+- Bookings record **adults and children** separately. Both count towards max occupancy. Optional per-night supplements: extra adult (above the room type's usual guests) and per child; board options have adult and child prices.
+- Check-in **15:00**, check-out **11:00**, configurable in Hotel details. Stays are counted in nights, half-open `[check_in, check_out)`.
+- Booking references are **year + number**, e.g. `2026-0001`, restarting each year.
+
+**Design:**
+- Rates: base nightly rate per room type → **rate rules** (date range, optional weekdays, optional room type, priority) applied in priority order. Each rule either *sets* the price, *adjusts* it by an amount, or applies a *percentage*. A weekend rate is just a rule for Fri+Sat.
+- Board options (RO / BB / DBB…) with adult and child prices per night; chosen per booked room.
+- Nightly prices are **snapshotted** into `room_nights` when booked, so rate changes don't alter existing bookings. A manual override is a total for that room's stay.
+- Double-booking guard: availability is checked in `booker-core`, then the insert runs in one transaction with a unique index on `(space_id, night)`. Cancelling deletes the booking's nights, freeing them; the booking row stays for history.
+- Status lives on the booking: provisional → confirmed → checked-in → checked-out, or cancelled / no-show.
+- Money is `i64` minor units everywhere (ts-rs emits it as `number`).
