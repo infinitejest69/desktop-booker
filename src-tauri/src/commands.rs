@@ -10,15 +10,16 @@
 
 use booker_core::{
     AuditEntry, BoardOption, BoardOptionId, Booking, BookingDetail, BookingId, BookingListItem,
-    BookingStatus, ChartEntry, DateRange, Event, EventDetail, EventId, EventListItem, Floor,
-    FloorId, Guest, Permission, PropertySettings, RateRule, RateRuleId, Role, RoomType, RoomTypeId,
+    BookingStatus, Charge, ChargeId, ChartEntry, DateRange, Event, EventDetail, EventId,
+    EventListItem, Floor, FloorId, Folio, FolioOwner, Guest, Invoice, InvoiceId, InvoiceSettings,
+    Payment, Permission, PropertySettings, RateRule, RateRuleId, Role, RoomType, RoomTypeId,
     SessionStatus, Space, SpaceId, StayQuote, SuiteBooking, SuiteBookingEntry, SuiteBookingId,
-    SuiteBookingStatus, SuitePricing, SuiteRates, User, UserId, validate_pin,
+    SuiteBookingStatus, SuitePricing, SuiteRates, TaxRate, User, UserId, validate_pin,
 };
 use booker_services::pin::{hash_pin, verify_pin};
 use booker_store::{
-    BookingRepo, EventRepo, FloorRepo, GuestRepo, RateRepo, RoomTypeRepo, SettingsRepo, SpaceRepo,
-    SqliteStore, StoreError, SuiteRepo,
+    BookingRepo, EventRepo, FloorRepo, GuestRepo, InvoiceRepo, RateRepo, RoomTypeRepo,
+    SettingsRepo, SpaceRepo, SqliteStore, StoreError, SuiteRepo,
 };
 use chrono::{NaiveDate, NaiveDateTime};
 use tauri::State;
@@ -623,4 +624,109 @@ pub async fn save_event(
         }
     }
     Ok(acting.save_event(&event, &organiser, today()).await?)
+}
+
+// ---------------------------------------------------------------------------
+// Folios and invoices
+// ---------------------------------------------------------------------------
+
+#[tauri::command]
+pub async fn list_tax_rates(store: Store<'_>, session: Sess<'_>) -> CmdResult<Vec<TaxRate>> {
+    Ok(session
+        .require(&store, Permission::ViewHotel)?
+        .list_tax_rates()
+        .await?)
+}
+
+#[tauri::command]
+pub async fn save_tax_rate(store: Store<'_>, session: Sess<'_>, rate: TaxRate) -> CmdResult<()> {
+    Ok(session
+        .require(&store, Permission::ManageSetup)?
+        .save_tax_rate(&rate)
+        .await?)
+}
+
+#[tauri::command]
+pub async fn get_invoice_settings(
+    store: Store<'_>,
+    session: Sess<'_>,
+) -> CmdResult<InvoiceSettings> {
+    Ok(session
+        .require(&store, Permission::ViewHotel)?
+        .get_invoice_settings()
+        .await?)
+}
+
+#[tauri::command]
+pub async fn save_invoice_settings(
+    store: Store<'_>,
+    session: Sess<'_>,
+    settings: InvoiceSettings,
+) -> CmdResult<()> {
+    Ok(session
+        .require(&store, Permission::ManageSetup)?
+        .save_invoice_settings(&settings)
+        .await?)
+}
+
+#[tauri::command]
+pub async fn get_folio(store: Store<'_>, session: Sess<'_>, owner: FolioOwner) -> CmdResult<Folio> {
+    Ok(session
+        .require(&store, Permission::ViewHotel)?
+        .get_folio(owner)
+        .await?)
+}
+
+#[tauri::command]
+pub async fn add_charge(
+    store: Store<'_>,
+    session: Sess<'_>,
+    owner: FolioOwner,
+    charge: Charge,
+) -> CmdResult<Folio> {
+    Ok(session
+        .require(&store, Permission::MakeBookings)?
+        .add_charge(owner, &charge)
+        .await?)
+}
+
+#[tauri::command]
+pub async fn remove_charge(store: Store<'_>, session: Sess<'_>, id: ChargeId) -> CmdResult<Folio> {
+    Ok(session
+        .require(&store, Permission::CancelBookings)?
+        .remove_charge(id)
+        .await?)
+}
+
+#[tauri::command]
+pub async fn add_payment(
+    store: Store<'_>,
+    session: Sess<'_>,
+    owner: FolioOwner,
+    payment: Payment,
+) -> CmdResult<Folio> {
+    Ok(session
+        .require(&store, Permission::MakeBookings)?
+        .add_payment(owner, &payment)
+        .await?)
+}
+
+#[tauri::command]
+pub async fn issue_invoice(
+    store: Store<'_>,
+    session: Sess<'_>,
+    owner: FolioOwner,
+) -> CmdResult<Invoice> {
+    Ok(session
+        .require(&store, Permission::MakeBookings)?
+        .issue_invoice(owner, today())
+        .await?)
+}
+
+#[tauri::command]
+pub async fn get_invoice(store: Store<'_>, session: Sess<'_>, id: InvoiceId) -> CmdResult<Invoice> {
+    Ok(session
+        .require(&store, Permission::ViewHotel)?
+        .get_invoice(id)
+        .await?)
 }

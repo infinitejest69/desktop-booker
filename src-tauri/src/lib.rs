@@ -80,6 +80,16 @@ pub fn run() {
             commands::list_events,
             commands::get_event,
             commands::save_event,
+            commands::list_tax_rates,
+            commands::save_tax_rate,
+            commands::get_invoice_settings,
+            commands::save_invoice_settings,
+            commands::get_folio,
+            commands::add_charge,
+            commands::remove_charge,
+            commands::add_payment,
+            commands::issue_invoice,
+            commands::get_invoice,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

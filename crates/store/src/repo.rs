@@ -13,9 +13,10 @@ use std::future::Future;
 
 use booker_core::{
     BoardOption, BoardOptionId, Booking, BookingDetail, BookingId, BookingListItem, BookingStatus,
-    ChartEntry, DateRange, Event, EventDetail, EventId, EventListItem, Floor, FloorId, Guest,
+    Charge, ChargeId, ChartEntry, DateRange, Event, EventDetail, EventId, EventListItem, Floor,
+    FloorId, Folio, FolioOwner, Guest, Invoice, InvoiceId, InvoiceSettings, Payment,
     PropertySettings, RateRule, RateRuleId, RoomType, RoomTypeId, Space, SpaceId, StayQuote,
-    SuiteBooking, SuiteBookingEntry, SuiteBookingId, SuiteBookingStatus, SuiteRates,
+    SuiteBooking, SuiteBookingEntry, SuiteBookingId, SuiteBookingStatus, SuiteRates, TaxRate,
 };
 use chrono::{NaiveDate, NaiveDateTime};
 
@@ -172,4 +173,38 @@ pub trait EventRepo {
     /// Releases held block rooms whose release date has come. Returns how many.
     fn release_due_blocks(&self, today: NaiveDate)
     -> impl Future<Output = StoreResult<u32>> + Send;
+}
+
+pub trait InvoiceRepo {
+    fn list_tax_rates(&self) -> impl Future<Output = StoreResult<Vec<TaxRate>>> + Send;
+    fn save_tax_rate(&self, rate: &TaxRate) -> impl Future<Output = StoreResult<()>> + Send;
+    /// Saved settings, or the defaults (prices include tax, "INV-") if none.
+    fn get_invoice_settings(&self) -> impl Future<Output = StoreResult<InvoiceSettings>> + Send;
+    fn save_invoice_settings(
+        &self,
+        settings: &InvoiceSettings,
+    ) -> impl Future<Output = StoreResult<()>> + Send;
+    /// The account: worked-out stay or suite charges, extras, payments,
+    /// totals and the invoices issued so far.
+    fn get_folio(&self, owner: FolioOwner) -> impl Future<Output = StoreResult<Folio>> + Send;
+    fn add_charge(
+        &self,
+        owner: FolioOwner,
+        charge: &Charge,
+    ) -> impl Future<Output = StoreResult<Folio>> + Send;
+    /// Removes an extra added by hand.
+    fn remove_charge(&self, id: ChargeId) -> impl Future<Output = StoreResult<Folio>> + Send;
+    /// Records money received, or refunded when the amount is negative.
+    fn add_payment(
+        &self,
+        owner: FolioOwner,
+        payment: &Payment,
+    ) -> impl Future<Output = StoreResult<Folio>> + Send;
+    /// Freezes the folio as an invoice under the next number.
+    fn issue_invoice(
+        &self,
+        owner: FolioOwner,
+        issued_on: NaiveDate,
+    ) -> impl Future<Output = StoreResult<Invoice>> + Send;
+    fn get_invoice(&self, id: InvoiceId) -> impl Future<Output = StoreResult<Invoice>> + Send;
 }

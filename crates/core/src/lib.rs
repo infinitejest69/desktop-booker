@@ -8,6 +8,7 @@ pub mod audit;
 pub mod booking;
 pub mod dates;
 pub mod events;
+pub mod folio;
 pub mod grid;
 pub mod ids;
 pub mod invoices;
@@ -31,10 +32,14 @@ pub use events::{
     EventRoom, LinkedRoom, RoomBlock, block_due_for_release, block_room_price, catering_totals,
     pick_block_rooms, plan_room_block, validate_event,
 };
+pub use folio::{
+    Folio, FolioLine, FolioOwner, FolioParts, Invoice, InvoiceSettings, InvoiceSummary,
+    stay_charges, suite_charges,
+};
 pub use grid::{GridRect, MAX_GRID_CELLS};
 pub use ids::{
     AuditId, BoardOptionId, BookingId, BookingRoomId, ChargeId, EventId, FloorId, GuestId,
-    PaymentId, RateRuleId, RoomTypeId, SpaceId, SuiteBookingId, TaxRateId, UserId,
+    InvoiceId, PaymentId, RateRuleId, RoomTypeId, SpaceId, SuiteBookingId, TaxRateId, UserId,
 };
 pub use invoices::{
     BASIS_POINTS, Charge, ChargeCategory, FolioTotals, LineAmounts, Payment, PaymentMethod,

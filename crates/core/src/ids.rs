@@ -120,3 +120,8 @@ define_id!(
     /// Identifies a [`crate::Payment`].
     PaymentId
 );
+
+define_id!(
+    /// Identifies an issued [`crate::Invoice`].
+    InvoiceId
+);

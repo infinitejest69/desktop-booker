@@ -186,7 +186,7 @@ impl TryFrom<SuiteBookingRow> for SuiteBookingEntry {
     }
 }
 
-async fn load_suite_booking(
+pub(crate) async fn load_suite_booking(
     conn: &mut SqliteConnection,
     id: SuiteBookingId,
 ) -> StoreResult<Option<SuiteBookingEntry>> {
@@ -209,7 +209,7 @@ async fn require_suite_booking(
         })
 }
 
-async fn event_suite_bookings(
+pub(crate) async fn event_suite_bookings(
     conn: &mut SqliteConnection,
     event: EventId,
 ) -> StoreResult<Vec<SuiteBookingEntry>> {
@@ -520,7 +520,10 @@ struct SittingRow {
     dietary: String,
 }
 
-async fn load_event(conn: &mut SqliteConnection, id: EventId) -> StoreResult<Option<Event>> {
+pub(crate) async fn load_event(
+    conn: &mut SqliteConnection,
+    id: EventId,
+) -> StoreResult<Option<Event>> {
     let row: Option<EventRow> = sqlx::query_as(
         "SELECT id, name, kind, organiser_id, start_date, end_date, notes, running_order,
                 block_room_type_id, block_rooms, block_check_in, block_check_out, block_rate,
