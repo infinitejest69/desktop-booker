@@ -38,6 +38,8 @@
     invoices: [],
     invoiceCounter: 0,
     housekeeping: {},
+    backupSettings: { folder: "", keep_daily: 14, keep_monthly: 12 },
+    backups: [],
   };
   // ?fake=setup starts with no users; ?fake=locked starts signed out.
   const mode = new URLSearchParams(location.search).get("fake");
@@ -501,12 +503,24 @@
     };
   }
 
+  function backupStatus() {
+    const last = db.backups[0]?.taken_at ?? null;
+    return {
+      settings: db.backupSettings,
+      folder: db.backupSettings.folder || "/home/demo/.local/share/com.desktopbooker.app/backups",
+      folder_ok: true,
+      last,
+      overdue: last === null,
+      backups: db.backups,
+    };
+  }
+
   const PUBLIC = new Set(["app_version", "session_status", "create_first_admin", "login", "logout"]);
   const ADMIN_ONLY = new Set([
     "save_settings", "save_floor", "delete_floor", "save_room_type", "delete_room_type",
     "save_space", "delete_space", "save_rate_rule", "delete_rate_rule", "save_board_option",
     "delete_board_option", "list_users", "save_user", "list_audit", "seed_demo_data",
-    "save_suite_rates", "save_tax_rate", "save_invoice_settings", "erase_guest", "revenue_report",
+    "save_suite_rates", "save_tax_rate", "save_invoice_settings", "erase_guest", "revenue_report", "save_backup_settings", "backup_now", "restore_backup",
   ]);
 
   const guestName = (b) => {
@@ -684,6 +698,21 @@
       return eventDetail(ev);
     },
     save_event: ({ event, organiser }) => saveEvent(event, organiser),
+
+    // Backups (mirrors src-tauri's backup commands): none yet, so overdue.
+    backup_status: () => backupStatus(),
+    save_backup_settings: ({ settings }) => {
+      if (settings.folder.trim() && !settings.folder.startsWith("/media/")) err("That folder can't be found. Plug in the drive or choose another folder.");
+      db.backupSettings = settings;
+      return backupStatus();
+    },
+    backup_now: () => {
+      const now = new Date();
+      const stamp = now.toISOString().slice(0, 19).replace(/[-:]/g, "").replace("T", "-");
+      db.backups.unshift({ name: `booker-${stamp}.db`, taken_at: now.toISOString().slice(0, 19), size_bytes: 245000 });
+      return backupStatus();
+    },
+    restore_backup: () => {},
 
     // Housekeeping, reports and guests (mirrors crates/store/src/operations.rs).
     list_housekeeping: () =>

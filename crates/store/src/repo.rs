@@ -234,3 +234,21 @@ pub trait OperationsRepo {
     /// Removes a guest's personal details (GDPR) but keeps their bookings.
     fn erase_guest(&self, id: GuestId) -> impl Future<Output = StoreResult<()>> + Send;
 }
+
+pub trait BackupRepo {
+    /// Saved settings, or the defaults (app folder, 14 daily, 12 monthly).
+    fn get_backup_settings(
+        &self,
+    ) -> impl Future<Output = StoreResult<booker_core::BackupSettings>> + Send;
+    fn save_backup_settings(
+        &self,
+        settings: &booker_core::BackupSettings,
+    ) -> impl Future<Output = StoreResult<()>> + Send;
+    /// Copies the database into `dir` (safe while running), then deletes
+    /// backups the rotation no longer keeps.
+    fn backup_now(
+        &self,
+        dir: &std::path::Path,
+        settings: &booker_core::BackupSettings,
+    ) -> impl Future<Output = StoreResult<booker_core::BackupInfo>> + Send;
+}

@@ -5,12 +5,46 @@ mod commands;
 mod error;
 mod session;
 
-use booker_store::{EventRepo, SettingsRepo, SqliteStore};
+use booker_store::{BackupRepo, EventRepo, SettingsRepo, SqliteStore};
 use session::Session;
 use tauri::{Manager, RunEvent};
 
-/// How many automatic on-exit backups to keep (Phase 7 adds scheduled ones).
-const BACKUPS_KEPT: usize = 10;
+/// Where the live database file is, for restoring a backup over it.
+pub struct DbPath(pub std::path::PathBuf);
+
+/// The folder backups go to: the chosen one, or `<app data>/backups`.
+pub fn backup_dir(app: &tauri::AppHandle, folder: &str) -> std::path::PathBuf {
+    if folder.trim().is_empty() {
+        app.path()
+            .app_data_dir()
+            .map(|d| d.join("backups"))
+            .unwrap_or_else(|_| std::path::PathBuf::from("backups"))
+    } else {
+        std::path::PathBuf::from(folder.trim())
+    }
+}
+
+/// Takes a backup if the last one is overdue. Errors are logged, not fatal.
+fn backup_if_due(app: &tauri::AppHandle) {
+    let Some(store) = app.try_state::<SqliteStore>() else {
+        return;
+    };
+    let run = async {
+        let settings = store.get_backup_settings().await?;
+        let dir = backup_dir(app, &settings.folder);
+        let last = booker_store::list_backups(&dir)?
+            .first()
+            .map(|b| b.taken_at);
+        if booker_core::backup_overdue(last, chrono::Local::now().naive_local()) {
+            let made = store.backup_now(&dir, &settings).await?;
+            println!("[desktop-booker] daily backup: {}", made.name);
+        }
+        Ok::<(), booker_store::StoreError>(())
+    };
+    if let Err(e) = tauri::async_runtime::block_on(run) {
+        eprintln!("[desktop-booker] scheduled backup failed: {e}");
+    }
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -34,6 +68,15 @@ pub fn run() {
             }
             app.manage(Session::new(idle));
             app.manage(store);
+            app.manage(DbPath(db_path.clone()));
+            // A daily backup while the app is open: check now, then every 30 minutes.
+            let handle = app.handle().clone();
+            std::thread::spawn(move || {
+                loop {
+                    backup_if_due(&handle);
+                    std::thread::sleep(std::time::Duration::from_secs(30 * 60));
+                }
+            });
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -97,6 +140,10 @@ pub fn run() {
             commands::report_csv,
             commands::guest_profile,
             commands::erase_guest,
+            commands::backup_status,
+            commands::save_backup_settings,
+            commands::backup_now,
+            commands::restore_backup,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
@@ -110,12 +157,16 @@ pub fn run() {
 
 /// Copies the database into `<app data>/backups/`, keeping the newest few.
 fn backup_on_exit(app: &tauri::AppHandle) {
-    let (Some(store), Ok(dir)) = (app.try_state::<SqliteStore>(), app.path().app_data_dir()) else {
+    let Some(store) = app.try_state::<SqliteStore>() else {
         return;
     };
-    let dir = dir.join("backups");
-    match tauri::async_runtime::block_on(store.backup_with_rotation(&dir, BACKUPS_KEPT)) {
-        Ok(path) => println!("[desktop-booker] backup: {}", path.display()),
+    let run = async {
+        let settings = store.get_backup_settings().await?;
+        let target = backup_dir(app, &settings.folder);
+        store.backup_now(&target, &settings).await
+    };
+    match tauri::async_runtime::block_on(run) {
+        Ok(made) => println!("[desktop-booker] backup on exit: {}", made.name),
         Err(e) => eprintln!("[desktop-booker] backup failed: {e}"),
     }
 }

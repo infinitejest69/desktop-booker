@@ -30,6 +30,11 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "publisher": "DesktopBooker",
+    "category": "Business",
+    "shortDescription": "Offline booking for a small hotel",
+    "longDescription": "Rooms, function suites, events, invoices, housekeeping and reports for a small family-run hotel. Runs on one computer with no hosting; data stays on the hotel's own machine with daily backups.",
+    "copyright": "© 2026 Andy Lumsden"
   }
 }

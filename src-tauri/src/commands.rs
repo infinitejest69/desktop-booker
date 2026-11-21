@@ -878,3 +878,101 @@ pub async fn erase_guest(store: Store<'_>, session: Sess<'_>, id: GuestId) -> Cm
         .erase_guest(id)
         .await?)
 }
+
+// ---------------------------------------------------------------------------
+// Backups
+// ---------------------------------------------------------------------------
+
+async fn status_of(
+    store: &SqliteStore,
+    app: &tauri::AppHandle,
+) -> CmdResult<booker_core::BackupStatus> {
+    use booker_store::BackupRepo;
+    let settings = store.get_backup_settings().await?;
+    let dir = crate::backup_dir(app, &settings.folder);
+    // The app's own folder is made on first use; a chosen one must exist.
+    let folder_ok = dir.is_dir()
+        || (settings.folder.trim().is_empty() && std::fs::create_dir_all(&dir).is_ok());
+    let backups = booker_store::list_backups(&dir)?;
+    let last = backups.first().map(|b| b.taken_at);
+    Ok(booker_core::BackupStatus {
+        folder: dir.display().to_string(),
+        folder_ok,
+        overdue: booker_core::backup_overdue(last, chrono::Local::now().naive_local()),
+        last,
+        backups,
+        settings,
+    })
+}
+
+#[tauri::command]
+pub async fn backup_status(
+    app: tauri::AppHandle,
+    store: Store<'_>,
+    session: Sess<'_>,
+) -> CmdResult<booker_core::BackupStatus> {
+    let acting = session.require(&store, Permission::ViewHotel)?;
+    status_of(&acting, &app).await
+}
+
+#[tauri::command]
+pub async fn save_backup_settings(
+    app: tauri::AppHandle,
+    store: Store<'_>,
+    session: Sess<'_>,
+    settings: booker_core::BackupSettings,
+) -> CmdResult<booker_core::BackupStatus> {
+    use booker_store::BackupRepo;
+    let acting = session.require(&store, Permission::ManageSetup)?;
+    let folder = settings.folder.trim();
+    if !folder.is_empty() && !std::path::Path::new(folder).is_dir() {
+        return Err(CommandError::validation(
+            "That folder can't be found. Plug in the drive or choose another folder.",
+        ));
+    }
+    acting.save_backup_settings(&settings).await?;
+    status_of(&acting, &app).await
+}
+
+#[tauri::command]
+pub async fn backup_now(
+    app: tauri::AppHandle,
+    store: Store<'_>,
+    session: Sess<'_>,
+) -> CmdResult<booker_core::BackupStatus> {
+    use booker_store::BackupRepo;
+    let acting = session.require(&store, Permission::ManageSetup)?;
+    let settings = acting.get_backup_settings().await?;
+    acting
+        .backup_now(&crate::backup_dir(&app, &settings.folder), &settings)
+        .await?;
+    status_of(&acting, &app).await
+}
+
+/// Replaces the live database with a backup and restarts the app. A
+/// snapshot of the current data is taken first, so a restore can be undone.
+#[tauri::command]
+pub async fn restore_backup(
+    app: tauri::AppHandle,
+    store: Store<'_>,
+    session: Sess<'_>,
+    db: State<'_, crate::DbPath>,
+    name: String,
+) -> CmdResult<()> {
+    use booker_store::BackupRepo;
+    let acting = session.require(&store, Permission::ManageSetup)?;
+    // Only a plain file name from the list: no paths.
+    if booker_core::parse_backup_name(&name).is_none() || name.contains(['/', '\\']) {
+        return Err(CommandError::validation("Choose a backup from the list."));
+    }
+    let settings = acting.get_backup_settings().await?;
+    let dir = crate::backup_dir(&app, &settings.folder);
+    let chosen = dir.join(&name);
+    if !chosen.is_file() {
+        return Err(CommandError::validation("That backup can't be found."));
+    }
+    acting.backup_now(&dir, &settings).await?;
+    store.close().await;
+    booker_store::restore_file(&chosen, &db.0)?;
+    app.restart();
+}

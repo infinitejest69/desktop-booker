@@ -46,6 +46,8 @@ import type { GuestProfile } from "./bindings/GuestProfile";
 import type { HousekeepingStatus } from "./bindings/HousekeepingStatus";
 import type { MonthRevenue } from "./bindings/MonthRevenue";
 import type { RoomHousekeeping } from "./bindings/RoomHousekeeping";
+import type { BackupSettings } from "./bindings/BackupSettings";
+import type { BackupStatus } from "./bindings/BackupStatus";
 
 export type ErrorKind = "validation" | "not_found" | "internal" | "locked" | "forbidden";
 
@@ -179,4 +181,10 @@ export const api = {
     call<string>("report_csv", { report, period }),
   guestProfile: (id: string) => call<GuestProfile>("guest_profile", { id }),
   eraseGuest: (id: string) => call<void>("erase_guest", { id }),
+
+  backupStatus: () => call<BackupStatus>("backup_status"),
+  saveBackupSettings: (settings: BackupSettings) => call<BackupStatus>("save_backup_settings", { settings }),
+  backupNow: () => call<BackupStatus>("backup_now"),
+  /** Replaces all data with the backup and restarts the app. */
+  restoreBackup: (name: string) => call<void>("restore_backup", { name }),
 };

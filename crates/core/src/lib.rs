@@ -5,6 +5,7 @@
 //! server, Android).
 
 pub mod audit;
+pub mod backups;
 pub mod booking;
 pub mod dates;
 pub mod events;
@@ -23,6 +24,10 @@ pub mod validation;
 // Re-export the main types so callers can write `booker_core::Floor`
 // instead of `booker_core::property::Floor`.
 pub use audit::AuditEntry;
+pub use backups::{
+    BackupInfo, BackupSettings, BackupStatus, backup_file_name, backup_overdue, backups_to_delete,
+    parse_backup_name,
+};
 pub use booking::{
     Booking, BookingDetail, BookingListItem, BookingRoom, BookingSource, BookingStatus, ChartEntry,
     Guest, Occupancy, RoomPricing, format_reference, free_rooms, validate_booking, validate_guest,

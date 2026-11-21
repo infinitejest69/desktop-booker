@@ -50,3 +50,34 @@ test("the occupancy report counts tonight's rooms", async ({ demoHotel: page }) 
     page.getByRole("list", { name: "Occupancy by night" }).getByRole("listitem").nth(tonight - 1),
   ).toHaveAccessibleName(/66\.7%, 2 of 3/);
 });
+
+test("the dashboard warns until a backup is taken", async ({ demoHotel: page }) => {
+  const warning = page.getByRole("alert").filter({ hasText: "No backup in the last day." });
+  await expect(warning).toBeVisible();
+  await warning.getByRole("link", { name: "Check backups" }).click();
+
+  await expect(page.getByRole("heading", { level: 1, name: "Backups" })).toBeVisible();
+  await page.getByRole("button", { name: "Back up now" }).click();
+  await expect(page.getByText("Backed up")).toBeVisible();
+  await expect(page.getByRole("region", { name: "Backup status" })).toContainText("Last backup");
+  await expect(page.getByRole("region", { name: "Backup status" }).getByRole("alert")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Restore" })).toHaveCount(1);
+
+  await page.getByRole("link", { name: "Dashboard" }).click();
+  await expect(page.getByText("No backup in the last day.")).toHaveCount(0);
+});
+
+test("a missing backup folder is refused and restoring asks first", async ({ demoHotel: page }) => {
+  await page.goto("/setup/backups");
+  const settings = page.getByRole("form", { name: "Backup settings" });
+  await settings.getByRole("textbox", { name: "Backup folder" }).fill("Z:\\NoSuchDrive");
+  await settings.getByRole("button", { name: "Save settings" }).click();
+  await expect(page.getByText("That folder can't be found.", { exact: false })).toBeVisible();
+
+  await page.getByRole("button", { name: "Back up now" }).click();
+  await page.getByRole("button", { name: "Restore" }).click();
+  const dialog = page.getByRole("alertdialog");
+  await expect(dialog).toContainText("A backup of the data as it is now is taken first");
+  await dialog.getByRole("button", { name: "Cancel" }).click();
+  await expect(dialog).toHaveCount(0);
+});

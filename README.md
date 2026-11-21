@@ -50,7 +50,15 @@ pnpm tauri build --no-bundle  # just the executable (faster)
 - Executable: `target/release/desktop-booker` (`.exe` on Windows)
 - Installers: `target/release/bundle/` (Linux: AppImage / deb / rpm; Windows: msi / nsis; macOS: dmg / app)
 
-Each OS's installers have to be built on that OS. CI builds all three on every push to `main`.
+Each OS's installers have to be built on that OS. CI checks all three build on every push to `main`.
+
+**Publishing installers:** push a version tag and GitHub builds them all:
+
+```bash
+git tag v1.0.0 && git push origin v1.0.0
+```
+
+The Release workflow (`.github/workflows/release.yml`) attaches Windows (MSI, NSIS), Linux (AppImage, deb) and macOS (dmg) installers to a **draft** release on GitHub; check it, then publish. Windows and macOS builds are unsigned, so the system asks for confirmation the first time.
 
 ## Checks
 
@@ -84,7 +92,9 @@ docs/         requirements, roadmap, phase checklists, decisions (ADRs)
 
 ## Data
 
-The database is a single SQLite file in the OS app-data folder (e.g. `~/.local/share/com.desktopbooker.app/` on Linux, `%APPDATA%\com.desktopbooker.app\` on Windows). Each time the app closes it saves a backup copy to `backups/` next to the database (newest 10 kept). Never put the live database in a cloud-synced or network folder; scheduled backups to a folder of your choice come in Phase 7.
+The database is a single SQLite file in the OS app-data folder (e.g. `~/.local/share/com.desktopbooker.app/` on Linux, `%APPDATA%\com.desktopbooker.app\` on Windows). Never put the live database in a cloud-synced or network folder.
+
+**Backups:** the app backs up once a day while it's open and again when it closes, keeping one per day for 14 days and one per month for 12 months. Choose the folder under *My hotel → Backups* (a USB stick, network drive, OneDrive or Dropbox folder is best); by default they go in `backups/` next to the database. The dashboard warns if no backup has been taken in a day or the folder can't be reached. *Restore* takes a backup of the current data first, then replaces it and restarts the app.
 
 ## Licence
 

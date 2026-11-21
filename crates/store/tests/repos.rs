@@ -273,3 +273,47 @@ async fn backups_are_written_and_rotated() {
     drop(s);
     let _ = std::fs::remove_dir_all(&root);
 }
+
+#[tokio::test]
+async fn delete_the_live_data_restore_a_backup_and_it_is_all_back() {
+    use booker_store::{BackupRepo, restore_file};
+    let root = std::env::temp_dir().join(format!("booker-restore-test-{}", uuid::Uuid::now_v7()));
+    let db = root.join("booker.db");
+    let dir = root.join("backups");
+    let s = SqliteStore::open(&db).await.unwrap();
+    s.seed_demo().await.unwrap();
+    let settings = s.get_backup_settings().await.unwrap();
+    assert_eq!((settings.keep_daily, settings.keep_monthly), (14, 12));
+    let backup = s.backup_now(&dir, &settings).await.unwrap();
+    assert!(backup.size_bytes > 0);
+    assert_eq!(booker_store::list_backups(&dir).unwrap().len(), 1);
+
+    // Lose everything after the backup: a new floor, then the whole file.
+    let floor = Floor {
+        id: FloorId::new(),
+        name: "Annexe".into(),
+        level: 9,
+        grid_cols: 10,
+        grid_rows: 10,
+    };
+    s.save_floor(&floor).await.unwrap();
+    s.close().await;
+    std::fs::remove_file(&db).unwrap();
+
+    restore_file(&dir.join(&backup.name), &db).unwrap();
+    let back = SqliteStore::open(&db).await.unwrap();
+    assert_eq!(back.list_spaces(None).await.unwrap().len(), 42);
+    assert!(
+        !back
+            .list_floors()
+            .await
+            .unwrap()
+            .iter()
+            .any(|f| f.name == "Annexe")
+    );
+    // A file that isn't a backup is refused.
+    std::fs::write(root.join("notes.txt"), "hello").unwrap();
+    assert!(restore_file(&root.join("notes.txt"), &db).is_err());
+    back.close().await;
+    let _ = std::fs::remove_dir_all(&root);
+}

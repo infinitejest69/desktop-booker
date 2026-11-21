@@ -29,6 +29,8 @@
   let entries = $state<ChartEntry[]>([]);
   let upcoming = $state<BookingListItem[]>([]);
   let events = $state<EventListItem[]>([]);
+  /** Set when backups need attention: overdue or the folder is missing. */
+  let backupWarning = $state<string | null>(null);
   let busy = $state<string | null>(null);
   let chartDays = $state(14);
 
@@ -72,6 +74,18 @@
   }
 
   onMount(load);
+  onMount(() => {
+    api
+      .backupStatus()
+      .then((b) => {
+        backupWarning = !b.folder_ok
+          ? "The backup folder can't be reached. Plug the drive in or choose another folder."
+          : b.overdue
+            ? "No backup in the last day."
+            : null;
+      })
+      .catch(() => {});
+  });
 
   $effect(() => {
     // Refetch when the chart grows to show more days.
@@ -148,6 +162,12 @@
       {/if}
     </div>
   {:else}
+    {#if backupWarning}
+      <p class="backup-warning" role="alert">
+        {backupWarning}
+        {#if session.can("manage_setup")}<a href="/setup/backups">Check backups</a>{/if}
+      </p>
+    {/if}
     <section class="glance" aria-label="Today at a glance">
       <p>
         <strong>{summary.arrivals.length}</strong> arriving,
@@ -405,6 +425,14 @@
   .who {
     font-weight: 700;
     color: var(--ink);
+  }
+
+  .backup-warning {
+    margin: 0 0 calc(var(--ui-spacing) * 4);
+    padding: calc(var(--ui-spacing) * 2) calc(var(--ui-spacing) * 3);
+    border-left: 3px solid var(--brass);
+    background: var(--brass-tint);
+    font-weight: 600;
   }
 
   .events {
