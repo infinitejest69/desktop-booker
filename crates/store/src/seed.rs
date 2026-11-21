@@ -2,12 +2,17 @@
 
 use booker_core::{
     Adjustment, BoardOption, BoardOptionId, Booking, BookingId, BookingRoom, BookingRoomId,
-    BookingSource, BookingStatus, DateRange, Floor, FloorId, GridRect, Guest, GuestId, Money,
-    RateRule, RateRuleId, RoomType, RoomTypeId, Space, SpaceId, SpaceKind, SuiteCapacities,
+    BookingSource, BookingStatus, CateringSitting, DateRange, Event, EventId, EventKind, Floor,
+    FloorId, GridRect, Guest, GuestId, Layout, Money, RateRule, RateRuleId, RoomBlock, RoomType,
+    RoomTypeId, Space, SpaceId, SpaceKind, SuiteBooking, SuiteBookingId, SuiteBookingStatus,
+    SuiteCapacities, SuitePricing, SuiteRates, ValidationError,
 };
-use chrono::{Datelike, Days, Local, NaiveDate};
+use chrono::{Datelike, Days, Local, NaiveDate, NaiveDateTime, NaiveTime, Weekday};
 
-use crate::repo::{BookingRepo, FloorRepo, RateRepo, RoomTypeRepo, SpaceRepo};
+use crate::StoreError;
+use crate::repo::{
+    BookingRepo, EventRepo, FloorRepo, RateRepo, RoomTypeRepo, SpaceRepo, SuiteRepo,
+};
 use crate::{SqliteStore, StoreResult};
 
 const COLS: u16 = 24;
@@ -134,6 +139,281 @@ impl SqliteStore {
             }
         }
         self.seed_rates_and_bookings().await?;
+        self.seed_demo_events().await?;
+        Ok(true)
+    }
+
+    /// Adds demo suite rates, a wedding, a conference and a club dinner to
+    /// the demo hotel. Returns `false` and does nothing if any event exists
+    /// or the demo suites aren't there.
+    pub async fn seed_demo_events(&self) -> StoreResult<bool> {
+        if !self.list_events(NaiveDate::MIN).await?.is_empty() {
+            return Ok(false);
+        }
+        let spaces = self.list_spaces(None).await?;
+        let suite = |name: &str| {
+            spaces
+                .iter()
+                .find(|s| s.kind == SpaceKind::Suite && s.name == name)
+                .map(|s| s.id)
+        };
+        let (Some(garden), Some(oak)) = (suite("Garden Suite"), suite("Oak Room")) else {
+            return Ok(false);
+        };
+        for (id, hourly, min_hours, half, full) in
+            [(garden, 120, 3, 450, 800), (oak, 45, 2, 150, 280)]
+        {
+            self.save_suite_rates(
+                id,
+                &SuiteRates {
+                    hourly: Some(Money::from_major(hourly)),
+                    min_hours,
+                    half_day: Some(Money::from_major(half)),
+                    full_day: Some(Money::from_major(full)),
+                    setup_minutes: 60,
+                    cleardown_minutes: 30,
+                },
+            )
+            .await?;
+        }
+
+        let today = Local::now().date_naive();
+        let at = |day: NaiveDate, h: u32, m: u32| -> NaiveDateTime {
+            day.and_time(NaiveTime::from_hms_opt(h, m, 0).unwrap_or_default())
+        };
+        let day_in = |days: u64| today.checked_add_days(Days::new(days)).unwrap_or(today);
+        // The wedding is on a Saturday about five weeks away.
+        let mut wedding_day = day_in(35);
+        while wedding_day.weekday() != Weekday::Sat {
+            wedding_day = wedding_day.succ_opt().unwrap_or(wedding_day);
+        }
+        let mut conference_day = day_in(10);
+        while matches!(conference_day.weekday(), Weekday::Sat | Weekday::Sun) {
+            conference_day = conference_day.succ_opt().unwrap_or(conference_day);
+        }
+        let dinner_day = day_in(1);
+        let double = self
+            .list_room_types()
+            .await?
+            .into_iter()
+            .find(|t| t.code == "DBL")
+            .map(|t| t.id);
+
+        let contact = |first: &str, last: &str, email: &str| Guest {
+            id: GuestId::new(),
+            first_name: first.into(),
+            last_name: last.into(),
+            email: email.into(),
+            phone: "07700 900123".into(),
+            address: String::new(),
+            notes: String::new(),
+        };
+        let sitting =
+            |name: &str, day: NaiveDate, h: u32, adults: u16, children: u16, dietary: &str| {
+                CateringSitting {
+                    name: name.into(),
+                    date: day,
+                    time: NaiveTime::from_hms_opt(h, 0, 0).unwrap_or_default(),
+                    adults,
+                    children,
+                    dietary: dietary.into(),
+                }
+            };
+
+        // A wedding with a block of double rooms for guests.
+        let ffion = contact("Ffion", "Hughes", "ffion.hughes@example.com");
+        let mut wedding = Event {
+            id: EventId::new(),
+            name: "Hughes–Price wedding".into(),
+            kind: EventKind::Wedding,
+            organiser_id: ffion.id,
+            start_date: wedding_day,
+            end_date: wedding_day,
+            notes: "Bride's mother (Carys) is the contact on the day. Band brings own PA.".into(),
+            running_order: "12:30 Guests arrive, Oak Room\n13:00 Ceremony\n\
+                            14:00 Drinks on the lawn\n15:00 Wedding breakfast, Garden Suite\n\
+                            17:00 Speeches\n19:30 Evening guests and buffet\n00:00 Carriages"
+                .into(),
+            sittings: vec![
+                sitting(
+                    "Wedding breakfast",
+                    wedding_day,
+                    15,
+                    86,
+                    8,
+                    "6 vegetarian\n2 vegan\n1 coeliac\n1 nut allergy (table 4)",
+                ),
+                sitting(
+                    "Evening buffet",
+                    wedding_day,
+                    20,
+                    120,
+                    10,
+                    "Label all allergens",
+                ),
+            ],
+            room_block: DateRange::new(wedding_day, wedding_day.succ_opt().unwrap_or(wedding_day))
+                .ok()
+                .map(|stay| RoomBlock {
+                    room_type_id: double,
+                    rooms: 8,
+                    stay,
+                    rate: Money::from_major(85),
+                    release_date: wedding_day
+                        .checked_sub_days(Days::new(21))
+                        .unwrap_or(wedding_day),
+                }),
+        };
+        // The demo hotel is busy: hold as many of the eight as are free.
+        loop {
+            match self.save_event(&wedding, &ffion, today).await {
+                Ok(_) => break,
+                Err(StoreError::Validation(ValidationError::NotEnoughRooms { free, .. })) => {
+                    if let Some(b) = wedding.room_block.as_mut() {
+                        let taken = b.rooms;
+                        b.rooms = free.min(taken.saturating_sub(1));
+                    }
+                    if wedding.room_block.is_some_and(|b| b.rooms == 0) {
+                        wedding.room_block = None;
+                    }
+                }
+                Err(e) => return Err(e),
+            }
+        }
+        let suite_booking = |suite: SpaceId,
+                             event: &Event,
+                             guest: &Guest,
+                             title: &str,
+                             start: NaiveDateTime,
+                             end: NaiveDateTime,
+                             layout: Layout,
+                             attendees: u16,
+                             pricing: SuitePricing| SuiteBooking {
+            id: SuiteBookingId::new(),
+            suite_id: suite,
+            event_id: Some(event.id),
+            guest_id: guest.id,
+            title: title.into(),
+            start,
+            end,
+            layout,
+            attendees,
+            setup_minutes: 60,
+            cleardown_minutes: 30,
+            pricing,
+            status: SuiteBookingStatus::Confirmed,
+            notes: String::new(),
+        };
+        for b in [
+            suite_booking(
+                oak,
+                &wedding,
+                &ffion,
+                "Ceremony",
+                at(wedding_day, 12, 30),
+                at(wedding_day, 14, 0),
+                Layout::Theatre,
+                40,
+                SuitePricing::Hourly,
+            ),
+            suite_booking(
+                garden,
+                &wedding,
+                &ffion,
+                "Wedding breakfast and evening party",
+                at(wedding_day, 15, 0),
+                at(wedding_day, 23, 59),
+                Layout::Banquet,
+                94,
+                SuitePricing::PerHead {
+                    price: Money::from_major(55),
+                },
+            ),
+        ] {
+            self.save_suite_booking(&b, &ffion).await?;
+        }
+
+        // A one-day conference across both suites.
+        let priya = contact("Priya", "Shah", "events@coastaltech.example.com");
+        let conference = Event {
+            id: EventId::new(),
+            name: "Coastal Tech Summit".into(),
+            kind: EventKind::Conference,
+            organiser_id: priya.id,
+            start_date: conference_day,
+            end_date: conference_day,
+            notes: "Invoice to Coastal Tech Ltd. Projector and two lapel mics.".into(),
+            running_order: "08:30 Registration and coffee\n09:00 Keynote\n\
+                            12:30 Lunch\n13:30 Breakouts (Oak Room)\n17:00 Close"
+                .into(),
+            sittings: vec![sitting(
+                "Buffet lunch",
+                conference_day,
+                12,
+                110,
+                0,
+                "12 vegetarian\n3 halal",
+            )],
+            room_block: None,
+        };
+        self.save_event(&conference, &priya, today).await?;
+        for b in [
+            suite_booking(
+                garden,
+                &conference,
+                &priya,
+                "Main sessions",
+                at(conference_day, 8, 30),
+                at(conference_day, 17, 0),
+                Layout::Theatre,
+                110,
+                SuitePricing::FullDay,
+            ),
+            suite_booking(
+                oak,
+                &conference,
+                &priya,
+                "Breakouts",
+                at(conference_day, 13, 30),
+                at(conference_day, 17, 0),
+                Layout::Boardroom,
+                20,
+                SuitePricing::HalfDay,
+            ),
+        ] {
+            self.save_suite_booking(&b, &priya).await?;
+        }
+
+        // A club dinner tomorrow evening.
+        let gareth = contact("Gareth", "Lewis", "secretary@rotary.example.com");
+        let dinner = Event {
+            id: EventId::new(),
+            name: "Rotary Club dinner".into(),
+            kind: EventKind::Dinner,
+            organiser_id: gareth.id,
+            start_date: dinner_day,
+            end_date: dinner_day,
+            notes: "Guest speaker needs a lectern.".into(),
+            running_order: "19:00 Drinks\n19:30 Dinner\n21:00 Speaker".into(),
+            sittings: vec![sitting("Dinner", dinner_day, 19, 28, 0, "2 vegetarian")],
+            room_block: None,
+        };
+        self.save_event(&dinner, &gareth, today).await?;
+        let mut club = suite_booking(
+            oak,
+            &dinner,
+            &gareth,
+            "Dinner",
+            at(dinner_day, 19, 0),
+            at(dinner_day, 23, 0),
+            Layout::Banquet,
+            28,
+            SuitePricing::PerHead {
+                price: Money::from_major(35),
+            },
+        );
+        club.status = SuiteBookingStatus::Provisional;
+        self.save_suite_booking(&club, &gareth).await?;
         Ok(true)
     }
 
@@ -260,7 +540,11 @@ impl SqliteStore {
                     stay,
                     adults,
                     children,
-                    board_option_id: Some(boards[[1, 1, 1, 0, 2][rng.below(5) as usize]].id),
+                    // Mostly B&B, some dinner too; room only is no board at all,
+                    // as the booking form treats a free board.
+                    board_option_id: [Some(1), Some(1), Some(1), Some(2), Some(2), None]
+                        [rng.below(6) as usize]
+                        .map(|i| boards[i].id),
                     price_override: None,
                 });
             }

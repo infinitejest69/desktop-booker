@@ -18,6 +18,7 @@
   import NumberField from "#lib/components/NumberField.svelte";
   import OptionalNumberField from "#lib/components/OptionalNumberField.svelte";
   import TextField from "#lib/components/TextField.svelte";
+  import SuiteRatesForm from "#lib/suites/SuiteRatesForm.svelte";
   import { api, errorMessage, newId } from "#lib/api.ts";
   import type { Floor } from "#lib/bindings/Floor.ts";
   import type { GridRect } from "#lib/bindings/GridRect.ts";
@@ -596,6 +597,11 @@
             <Button onclick={() => select(null)}>Floor settings</Button>
           </div>
         </form>
+        {#if draft.kind === "suite" && allSpaces.some((s) => s.id === draft?.id && s.kind === "suite")}
+          {#key draft.id}
+            <SuiteRatesForm suiteId={draft.id} suiteName={draft.name} />
+          {/key}
+        {/if}
       {:else if floorDraft}
         <form class="stack" onsubmit={saveFloorDraft}>
           <h2 id="details-heading">{floor?.name ?? "Floor"}</h2>

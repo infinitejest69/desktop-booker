@@ -144,6 +144,24 @@ test.describe("dashboard", () => {
     await expect(page.getByRole("region", { name: /In house/ })).toContainText("Margaret Hughes");
   });
 
+  test("arrivals and stays show the booking number and board", async ({ demoHotel: page }) => {
+    const arrivals = page.getByRole("region", { name: /Arrivals/ });
+    const margaret = arrivals.getByRole("listitem").filter({ hasText: "Margaret Hughes" });
+    await expect(margaret).toContainText(/\d{4}-\d{4}/);
+    await expect(margaret).toContainText("Bed & breakfast");
+
+    await margaret.getByRole("button", { name: "Check in" }).click();
+    const inHouse = page.getByRole("region", { name: /In house/ }).getByRole("listitem").filter({ hasText: "Margaret Hughes" });
+    await expect(inHouse).toContainText(/\d{4}-\d{4}/);
+    await expect(inHouse).toContainText("Bed & breakfast");
+
+    await inHouse.getByRole("link", { name: "Margaret Hughes" }).click();
+    await expect(page.getByText("Board: Bed & breakfast")).toBeVisible();
+
+    await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Bookings", exact: true }).click();
+    await expect(page.getByRole("row", { name: /Tom Price/ })).toContainText("Room only");
+  });
+
   test("the two-week chart opens bookings in the chart's side panel", async ({ demoHotel: page }) => {
     await page.getByRole("grid", { name: "Coming weeks" }).getByRole("gridcell", { name: /Margaret Hughes/ }).first().click();
     await expect(page.getByRole("dialog")).toContainText("Margaret Hughes");

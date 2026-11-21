@@ -157,6 +157,32 @@ impl SuiteBooking {
     }
 }
 
+/// A suite booking with what the timeline and event page show beside it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
+pub struct SuiteBookingEntry {
+    pub booking: SuiteBooking,
+    /// Fixed when the booking was saved.
+    pub price: Money,
+    pub suite_name: String,
+    pub guest_name: String,
+    pub event_name: Option<String>,
+}
+
+/// Prices can't be negative and buffers stay under a day.
+pub fn validate_suite_rates(rates: &SuiteRates) -> ValidationResult {
+    let prices = [rates.hourly, rates.half_day, rates.full_day];
+    if prices.iter().flatten().any(|m| m.0 < 0) {
+        return Err(ValidationError::NegativeAmount {
+            field: "Suite price",
+        });
+    }
+    if rates.setup_minutes >= 24 * 60 || rates.cleardown_minutes >= 24 * 60 {
+        return Err(ValidationError::InvalidBuffer);
+    }
+    Ok(())
+}
+
 /// The price of a suite booking, or an error if the suite doesn't offer the
 /// chosen kind of pricing.
 pub fn price_suite_booking(
@@ -408,6 +434,29 @@ mod tests {
         assert_eq!(
             price_suite_booking(&b, &rates()),
             Ok(Money::from_major(999))
+        );
+    }
+
+    #[test]
+    fn rate_cards_reject_negative_prices_and_day_long_buffers() {
+        let ok = SuiteRates {
+            hourly: Some(Money::from_major(50)),
+            setup_minutes: 60,
+            ..SuiteRates::default()
+        };
+        assert_eq!(validate_suite_rates(&ok), Ok(()));
+        let neg = SuiteRates {
+            full_day: Some(Money(-1)),
+            ..ok
+        };
+        assert!(validate_suite_rates(&neg).is_err());
+        let long = SuiteRates {
+            cleardown_minutes: 24 * 60,
+            ..ok
+        };
+        assert_eq!(
+            validate_suite_rates(&long),
+            Err(ValidationError::InvalidBuffer)
         );
     }
 }

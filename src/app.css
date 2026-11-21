@@ -136,6 +136,11 @@ main {
   flex: 1 1 10rem;
 }
 
+/* Fields in a row line up by their labels, even when one has a description. */
+.row.align-top {
+  align-items: flex-start;
+}
+
 .split {
   display: grid;
   grid-template-columns: minmax(16rem, 1fr) minmax(20rem, 26rem);

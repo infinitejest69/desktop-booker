@@ -26,8 +26,9 @@ pub use booking::{
 };
 pub use dates::{DateRange, MAX_NIGHTS, iso_weekday};
 pub use events::{
-    CateringSitting, CateringTotals, Event, EventKind, RoomBlock, block_due_for_release,
-    catering_totals, validate_event,
+    BlockPlan, CateringSitting, CateringTotals, Event, EventDetail, EventKind, EventListItem,
+    EventRoom, LinkedRoom, RoomBlock, block_due_for_release, block_room_price, catering_totals,
+    pick_block_rooms, plan_room_block, validate_event,
 };
 pub use grid::{GridRect, MAX_GRID_CELLS};
 pub use ids::{
@@ -41,8 +42,8 @@ pub use rates::{
     validate_board_option, validate_rate_rule,
 };
 pub use suites::{
-    Layout, SuiteBooking, SuiteBookingStatus, SuitePricing, SuiteRates, price_suite_booking,
-    validate_suite_booking,
+    Layout, SuiteBooking, SuiteBookingEntry, SuiteBookingStatus, SuitePricing, SuiteRates,
+    price_suite_booking, validate_suite_booking, validate_suite_rates,
 };
 pub use users::{
     PIN_MAX, PIN_MIN, Permission, Role, SessionStatus, User, validate_pin, validate_user,

@@ -356,6 +356,52 @@ async fn chart_free_rooms_and_search() {
 }
 
 #[tokio::test]
+async fn chart_and_search_show_each_rooms_board() {
+    let f = fixture().await;
+    let bb = BoardOption {
+        id: BoardOptionId::new(),
+        code: "BB".into(),
+        name: "Bed & breakfast".into(),
+        adult_price: Money::from_major(12),
+        child_price: Money::from_major(6),
+    };
+    f.store.save_board_option(&bb).await.unwrap();
+    let g = guest("Hughes");
+    let mut b = booking(&g, &f.rooms[0], stay("2026-05-10", "2026-05-12"));
+    b.rooms[0].board_option_id = Some(bb.id);
+    let mut second = b.rooms[0].clone();
+    second.id = BookingRoomId::new();
+    second.space_id = f.rooms[1].id;
+    second.board_option_id = None;
+    b.rooms.push(second);
+    f.store.save_booking(&b, &g).await.unwrap();
+
+    let chart = f
+        .store
+        .chart(d("2026-05-01"), d("2026-05-31"))
+        .await
+        .unwrap();
+    let board_of = |room: &Space| {
+        chart
+            .iter()
+            .find(|e| e.space_id == room.id)
+            .and_then(|e| e.board.clone())
+    };
+    assert_eq!(board_of(&f.rooms[0]).as_deref(), Some("Bed & breakfast"));
+    assert_eq!(board_of(&f.rooms[1]), None);
+
+    let found = f.store.search_bookings("hughes").await.unwrap();
+    let pairs: Vec<_> = found[0]
+        .rooms
+        .iter()
+        .cloned()
+        .zip(found[0].boards.iter().cloned())
+        .collect();
+    assert!(pairs.contains(&("101".into(), Some("Bed & breakfast".into()))));
+    assert!(pairs.contains(&("102".into(), None)));
+}
+
+#[tokio::test]
 async fn seed_demo_includes_rates_and_bookings() {
     let store = SqliteStore::open_in_memory().await.unwrap();
     store.seed_demo().await.unwrap();
@@ -377,4 +423,19 @@ async fn seed_demo_includes_rates_and_bookings() {
         assert!(statuses.contains(&s), "demo has {s:?} bookings");
     }
     assert!(store.search_bookings("").await.unwrap().len() >= 20);
+    // Demo events: a wedding with suites, sittings and held rooms.
+    use booker_store::EventRepo;
+    let events = store.list_events(today).await.unwrap();
+    assert_eq!(events.len(), 3);
+    let wedding = events.iter().find(|e| e.name.contains("wedding")).unwrap();
+    let detail = store.get_event(wedding.id).await.unwrap();
+    assert_eq!(detail.suites.len(), 2);
+    assert_eq!(detail.event.sittings.len(), 2);
+    assert!(detail.held_rooms > 0, "the wedding holds some rooms");
+    // Seeding events again does nothing.
+    assert!(!store.seed_demo_events().await.unwrap());
+    // Demo stays come with a mix of boards, including room only.
+    let boards: std::collections::HashSet<_> = chart.iter().map(|e| e.board.clone()).collect();
+    assert!(boards.contains(&Some("Bed & breakfast".into())));
+    assert!(boards.contains(&None));
 }

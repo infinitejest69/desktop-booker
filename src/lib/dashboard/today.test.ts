@@ -26,6 +26,7 @@ const e = (space_id: string, start: string, end: string, status: BookingStatus):
   stay: { start, end },
   adults: 2,
   children: 0,
+  board: null,
 });
 
 describe("todaySummary", () => {

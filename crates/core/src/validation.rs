@@ -95,6 +95,12 @@ pub enum ValidationError {
     },
     #[error("The release date must be on or before the guests' arrival")]
     ReleaseAfterArrival,
+    #[error(
+        "Only {free} suitable room(s) are free for those nights; the block needs {wanted} more"
+    )]
+    NotEnoughRooms { wanted: u16, free: u16 },
+    #[error("Setup and clear-down must each be under 24 hours")]
+    InvalidBuffer,
 }
 
 pub type ValidationResult = Result<(), ValidationError>;

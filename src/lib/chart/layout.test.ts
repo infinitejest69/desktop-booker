@@ -13,6 +13,7 @@ function entry(space: string, start: string, end: string): ChartEntry {
     stay: { start, end },
     adults: 2,
     children: 0,
+    board: null,
   };
 }
 

@@ -23,6 +23,15 @@ import type { RoomType } from "./bindings/RoomType";
 import type { RoomTypeId } from "./bindings/RoomTypeId";
 import type { Space } from "./bindings/Space";
 import type { SpaceId } from "./bindings/SpaceId";
+import type { Event } from "./bindings/Event";
+import type { EventDetail } from "./bindings/EventDetail";
+import type { EventId } from "./bindings/EventId";
+import type { EventListItem } from "./bindings/EventListItem";
+import type { SuiteBooking } from "./bindings/SuiteBooking";
+import type { SuiteBookingEntry } from "./bindings/SuiteBookingEntry";
+import type { SuiteBookingId } from "./bindings/SuiteBookingId";
+import type { SuiteBookingStatus } from "./bindings/SuiteBookingStatus";
+import type { SuiteRates } from "./bindings/SuiteRates";
 
 export type ErrorKind = "validation" | "not_found" | "internal" | "locked" | "forbidden";
 
@@ -120,4 +129,19 @@ export const api = {
   searchBookings: (query: string) => call<BookingListItem[]>("search_bookings", { query }),
 
   seedDemoData: () => call<boolean>("seed_demo_data"),
+
+  getSuiteRates: (suite: SpaceId) => call<SuiteRates>("get_suite_rates", { suite }),
+  saveSuiteRates: (suite: SpaceId, rates: SuiteRates) => call<void>("save_suite_rates", { suite, rates }),
+  /** Date-times are "YYYY-MM-DDTHH:MM:SS" in hotel local time. */
+  listSuiteBookings: (from: string, to: string) =>
+    call<SuiteBookingEntry[]>("list_suite_bookings", { from, to }),
+  getSuiteBooking: (id: SuiteBookingId) => call<SuiteBookingEntry>("get_suite_booking", { id }),
+  saveSuiteBooking: (booking: SuiteBooking, guest: Guest) =>
+    call<SuiteBookingEntry>("save_suite_booking", { booking, guest }),
+  setSuiteBookingStatus: (id: SuiteBookingId, status: SuiteBookingStatus) =>
+    call<SuiteBookingEntry>("set_suite_booking_status", { id, status }),
+
+  listEvents: (from: string) => call<EventListItem[]>("list_events", { from }),
+  getEvent: (id: EventId) => call<EventDetail>("get_event", { id }),
+  saveEvent: (event: Event, organiser: Guest) => call<EventDetail>("save_event", { event, organiser }),
 };

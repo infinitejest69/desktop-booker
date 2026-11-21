@@ -6,6 +6,7 @@
   import { goto } from "$app/navigation";
   import { api, errorMessage } from "#lib/api.ts";
   import type { BookingListItem } from "#lib/bindings/BookingListItem.ts";
+  import { boardsSummary } from "#lib/booking/board.ts";
   import { statusLabel } from "#lib/booking/status.ts";
   import { daysBetween, formatDay } from "#lib/dates.ts";
 
@@ -38,7 +39,7 @@
   {#if results.length}
     <table class="list">
       <thead>
-        <tr><th>Reference</th><th>Guest</th><th>Arrival</th><th>Nights</th><th>Rooms</th><th>Status</th></tr>
+        <tr><th>Reference</th><th>Guest</th><th>Arrival</th><th>Nights</th><th>Rooms</th><th>Board</th><th>Status</th></tr>
       </thead>
       <tbody>
         {#each results as b (b.id)}
@@ -48,6 +49,7 @@
             <td>{formatDay(b.arrival, { weekday: "short", day: "numeric", month: "short", year: "numeric" })}</td>
             <td>{daysBetween(b.arrival, b.departure)}</td>
             <td>{b.rooms.join(", ")}</td>
+            <td>{boardsSummary(b.boards)}</td>
             <td><span class="status" data-status={b.status}>{statusLabel[b.status]}</span></td>
           </tr>
         {/each}

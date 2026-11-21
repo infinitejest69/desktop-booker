@@ -8,4 +8,8 @@ import type { SpaceId } from "./SpaceId";
 /**
  * One booked room as the tariff chart draws it.
  */
-export type ChartEntry = { booking_id: BookingId, booking_room_id: BookingRoomId, reference: string, guest_name: string, status: BookingStatus, space_id: SpaceId, stay: DateRange, adults: number, children: number, };
+export type ChartEntry = { booking_id: BookingId, booking_room_id: BookingRoomId, reference: string, guest_name: string, status: BookingStatus, space_id: SpaceId, stay: DateRange, adults: number, children: number, 
+/**
+ * Board name, e.g. "Bed & breakfast"; `None` means room only.
+ */
+board: string | null, };

@@ -295,6 +295,8 @@ pub struct ChartEntry {
     pub stay: DateRange,
     pub adults: u8,
     pub children: u8,
+    /// Board name, e.g. "Bed & breakfast"; `None` means room only.
+    pub board: Option<String>,
 }
 
 /// The price of one booked room: the nights as priced when booked, and the
@@ -329,6 +331,8 @@ pub struct BookingListItem {
     pub arrival: NaiveDate,
     pub departure: NaiveDate,
     pub rooms: Vec<String>,
+    /// Board name for each room, in the same order as `rooms`; `None` means room only.
+    pub boards: Vec<Option<String>>,
 }
 
 #[cfg(test)]

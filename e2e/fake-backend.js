@@ -24,6 +24,10 @@
     counter: 0,
     users: [],
     audit: [],
+    suiteRates: {},
+    suiteBookings: [],
+    suitePrices: {},
+    events: [],
   };
   // ?fake=setup starts with no users; ?fake=locked starts signed out.
   const mode = new URLSearchParams(location.search).get("fake");
@@ -72,6 +76,8 @@
   };
   const holds = (status) => status !== "cancelled" && status !== "no_show";
   const noCaps = { theatre: null, boardroom: null, banquet: null, cabaret: null, reception: null };
+
+  const boardNameOf = (id) => db.boards.find((b) => b.id === id)?.name ?? null;
 
   function quote(spaceId, stay, adults, children, boardId) {
     const space = db.spaces.find((s) => s.id === spaceId);
@@ -188,7 +194,7 @@
       address: "",
       notes: "",
     });
-    const book = (g, space, start, nights) =>
+    const book = (g, space, start, nights, boardId) =>
       saveBooking(
         {
           id: id(),
@@ -204,15 +210,214 @@
               stay: { start, end: addDays(start, nights) },
               adults: 2,
               children: 0,
-              board_option_id: db.boards[1].id,
+              board_option_id: boardId,
               price_override: null,
             },
           ],
         },
         g,
       );
-    book(guest("Margaret", "Hughes"), db.spaces[1], t, 2);
-    book(guest("Tom", "Price"), db.spaces[2], addDays(t, -1), 3);
+    book(guest("Margaret", "Hughes"), db.spaces[1], t, 2, db.boards[1].id);
+    book(guest("Tom", "Price"), db.spaces[2], addDays(t, -1), 3, null);
+    seedEvents();
+    return true;
+  }
+
+  // ---- function suites and events (mirrors crates/store/src/events.rs) ----
+
+  const suites = () => db.spaces.filter((s) => s.kind === "suite");
+  const shiftMinutes = (dt, m) => {
+    const d = new Date(`${dt}Z`);
+    d.setUTCMinutes(d.getUTCMinutes() + m);
+    return d.toISOString().slice(0, 19);
+  };
+  const minutesBetween = (a, b) => Math.round((Date.parse(`${b}Z`) - Date.parse(`${a}Z`)) / 60000);
+
+  function suitePrice(b) {
+    const r = db.suiteRates[b.suite_id] ?? {};
+    const p = b.pricing;
+    if (p.kind === "hourly") {
+      if (r.hourly == null) err("This suite has no hourly price; choose another way of pricing it");
+      return r.hourly * Math.max(Math.ceil(minutesBetween(b.start, b.end) / 60), r.min_hours);
+    }
+    if (p.kind === "half_day") return r.half_day ?? err("This suite has no half-day price; choose another way of pricing it");
+    if (p.kind === "full_day") return r.full_day ?? err("This suite has no full-day price; choose another way of pricing it");
+    if (p.kind === "per_head") return p.price * b.attendees;
+    return p.price;
+  }
+
+  function suiteEntry(b) {
+    const g = db.guests.find((x) => x.id === b.guest_id);
+    return {
+      booking: b,
+      price: db.suitePrices[b.id],
+      suite_name: db.spaces.find((s) => s.id === b.suite_id)?.name ?? "?",
+      guest_name: g ? `${g.first_name} ${g.last_name}`.trim() : "?",
+      event_name: db.events.find((e) => e.id === b.event_id)?.name ?? null,
+    };
+  }
+
+  function saveSuiteBooking(b, guest) {
+    const suite = db.spaces.find((s) => s.id === b.suite_id);
+    if (!suite || suite.kind !== "suite") err("Choose a function suite");
+    if (!b.title.trim()) err("What it's for must not be empty");
+    if (b.end <= b.start) err("The end time must be after the start time");
+    if (b.status !== "cancelled") {
+      const cap = suite.suite_capacities[b.layout];
+      if (!cap) err(`This suite isn't set up for a ${b.layout} layout`);
+      if (b.attendees > cap) err(`This layout seats at most ${cap}`);
+      const pad = (x) => [shiftMinutes(x.start, -x.setup_minutes), shiftMinutes(x.end, x.cleardown_minutes)];
+      const [a0, a1] = pad(b);
+      const clash = db.suiteBookings.find((o) => {
+        if (o.id === b.id || o.suite_id !== b.suite_id || o.status === "cancelled") return false;
+        const [b0, b1] = pad(o);
+        return a0 < b1 && b0 < a1;
+      });
+      if (clash) err(`${suite.name} is in use then ("${clash.title}", including setup and clear-down)`);
+    }
+    const old = db.suiteBookings.find((o) => o.id === b.id);
+    const same =
+      old && old.start === b.start && old.end === b.end && old.attendees === b.attendees &&
+      JSON.stringify(old.pricing) === JSON.stringify(b.pricing);
+    db.suitePrices[b.id] = same ? db.suitePrices[b.id] : suitePrice(b);
+    db.guests = db.guests.filter((g) => g.id !== guest.id).concat(guest);
+    db.suiteBookings = db.suiteBookings.filter((o) => o.id !== b.id).concat({ ...b, guest_id: guest.id });
+    return suiteEntry(db.suiteBookings.find((o) => o.id === b.id));
+  }
+
+  const linked = (eventId) => db.bookings.filter((b) => b.booking.event_id === eventId);
+
+  function eventDetail(ev) {
+    const organiser = db.guests.find((g) => g.id === ev.organiser_id);
+    const suitesFor = db.suiteBookings
+      .filter((b) => b.event_id === ev.id)
+      .sort((a, b) => a.start.localeCompare(b.start))
+      .map(suiteEntry);
+    const rooms = linked(ev.id).map((b) => {
+      const d = detailOf(b);
+      return {
+        booking_id: b.booking.id,
+        reference: b.booking.reference,
+        guest_name: guestName(b).name,
+        status: b.booking.status,
+        rooms: b.booking.rooms.map((r) => db.spaces.find((s) => s.id === r.space_id)?.name ?? "?"),
+        stay: b.booking.rooms[0].stay,
+        total: d.total,
+      };
+    });
+    const suites_value = suitesFor.filter((s) => s.booking.status !== "cancelled").reduce((n, s) => n + s.price, 0);
+    const rooms_value = rooms.filter((r) => holds(r.status)).reduce((n, r) => n + r.total, 0);
+    return {
+      event: ev,
+      organiser,
+      suites: suitesFor,
+      rooms,
+      held_rooms: rooms.filter((r) => r.status === "provisional").length,
+      catering: {
+        sittings: ev.sittings.length,
+        adults: ev.sittings.reduce((n, x) => n + x.adults, 0),
+        children: ev.sittings.reduce((n, x) => n + x.children, 0),
+      },
+      suites_value,
+      rooms_value,
+      total: suites_value + rooms_value,
+    };
+  }
+
+  /** Holds, reprices or releases block rooms; returns how many were released. */
+  function syncBlock(ev) {
+    const block = ev.room_block;
+    const live = linked(ev.id).filter((b) => holds(b.booking.status));
+    const held = live.filter((b) => b.booking.status === "provisional");
+    const release = (list) => list.forEach((b) => (b.booking.status = "cancelled"));
+    if (!block || today() >= block.release_date) {
+      release(held);
+      return held.length;
+    }
+    const sameStay = (b) => b.booking.rooms[0].stay.start === block.stay.start && b.booking.rooms[0].stay.end === block.stay.end;
+    const moved = held.filter((b) => !sameStay(b));
+    const keep = held.filter(sameStay);
+    const counted = live.length - held.length + keep.length;
+    const surplus = keep.splice(Math.max(keep.length - Math.max(counted - block.rooms, 0), 0));
+    release([...moved, ...surplus]);
+    const price = block.rate * nightsOf(block.stay).length;
+    keep.forEach((b) => b.booking.rooms.forEach((r) => (r.price_override = price)));
+    const add = Math.max(block.rooms - (counted - surplus.length), 0);
+    const free = db.spaces.filter(
+      (s) => s.kind === "room" && !s.out_of_service && (!block.room_type_id || s.room_type_id === block.room_type_id) && !occupied(s.id, block.stay, null),
+    );
+    if (free.length < add) err(`Only ${free.length} suitable room(s) are free for those nights; the block needs ${add} more`);
+    const organiser = db.guests.find((g) => g.id === ev.organiser_id);
+    for (const space of free.slice(0, add)) {
+      const saved = saveBooking(
+        {
+          id: id(),
+          reference: "",
+          guest_id: organiser.id,
+          status: "provisional",
+          source: "other",
+          notes: `Held for ${ev.name}`,
+          rooms: [{ id: id(), space_id: space.id, stay: block.stay, adults: 2, children: 0, board_option_id: null, price_override: price }],
+        },
+        organiser,
+      );
+      db.bookings.find((b) => b.booking.id === saved.booking.id).booking.event_id = ev.id;
+    }
+    return moved.length + surplus.length;
+  }
+
+  function saveEvent(event, organiser) {
+    if (!event.name.trim()) err("Event name must not be empty");
+    if (!organiser.first_name.trim() && !organiser.last_name.trim()) err("The guest needs a first or last name");
+    const block = event.room_block;
+    if (block && block.release_date > block.stay.start) err("The release date must be on or before the guests' arrival");
+    const before = db.events.find((e) => e.id === event.id);
+    if (current?.role !== "admin" && block && block.rate !== before?.room_block?.rate)
+      throw { kind: "forbidden", message: "Only an admin can set a room block's group rate." };
+    const snapshot = structuredClone({ events: db.events, bookings: db.bookings, guests: db.guests });
+    try {
+      db.guests = db.guests.filter((g) => g.id !== organiser.id).concat(organiser);
+      const saved = { ...event, organiser_id: organiser.id };
+      db.events = db.events.filter((e) => e.id !== event.id).concat(saved);
+      syncBlock(saved);
+      log(`${before ? "Changed" : "Added"} event ${event.name}`, "event");
+      return eventDetail(saved);
+    } catch (e) {
+      Object.assign(db, snapshot);
+      throw e;
+    }
+  }
+
+  function seedEvents() {
+    const t = today();
+    const garden = suites()[0];
+    if (!garden || db.events.length) return false;
+    db.suiteRates[garden.id] = { hourly: 10000, min_hours: 3, half_day: 40000, full_day: 70000, setup_minutes: 60, cleardown_minutes: 30 };
+    const contact = (first, last) => ({ id: id(), first_name: first, last_name: last, email: `${first.toLowerCase()}@example.com`, phone: "", address: "", notes: "" });
+    const ffion = contact("Ffion", "Hughes");
+    const wedding = addDays(t, 20);
+    const ev = saveEvent(
+      {
+        id: id(),
+        name: "Hughes–Price wedding",
+        kind: "wedding",
+        organiser_id: ffion.id,
+        start_date: wedding,
+        end_date: wedding,
+        notes: "Band brings own PA.",
+        running_order: "13:00 Ceremony\n15:00 Wedding breakfast",
+        sittings: [{ name: "Wedding breakfast", date: wedding, time: "15:00:00", adults: 60, children: 4, dietary: "5 vegetarian\n1 nut allergy" }],
+        room_block: { room_type_id: db.types[0].id, rooms: 1, stay: { start: wedding, end: addDays(wedding, 1) }, rate: 8500, release_date: addDays(t, 6) },
+      },
+      ffion,
+    ).event;
+    const hire = (guest, title, start, end, extra) =>
+      saveSuiteBooking(
+        { id: id(), suite_id: garden.id, event_id: null, guest_id: guest.id, title, start, end, layout: "theatre", attendees: 40, setup_minutes: 60, cleardown_minutes: 30, pricing: { kind: "hourly" }, status: "confirmed", notes: "", ...extra },
+        guest,
+      );
+    hire(contact("Owen", "Davies"), "Board meeting", `${t}T10:00:00`, `${t}T12:00:00`, {});
+    hire(ffion, "Wedding breakfast", `${wedding}T15:00:00`, `${wedding}T23:00:00`, { event_id: ev.id, layout: "banquet", attendees: 64, pricing: { kind: "per_head", price: 5500 } });
     return true;
   }
 
@@ -221,6 +426,7 @@
     "save_settings", "save_floor", "delete_floor", "save_room_type", "delete_room_type",
     "save_space", "delete_space", "save_rate_rule", "delete_rate_rule", "save_board_option",
     "delete_board_option", "list_users", "save_user", "list_audit", "seed_demo_data",
+    "save_suite_rates",
   ]);
 
   const guestName = (b) => {
@@ -305,6 +511,7 @@
               stay: r.stay,
               adults: r.adults,
               children: r.children,
+              board: boardNameOf(r.board_option_id),
             })),
         ),
     get_booking: ({ id }) => {
@@ -337,8 +544,63 @@
           arrival: b.booking.rooms[0].stay.start,
           departure: b.booking.rooms[0].stay.end,
           rooms: b.booking.rooms.map((r) => db.spaces.find((s) => s.id === r.space_id)?.name ?? "?"),
+          boards: b.booking.rooms.map((r) => boardNameOf(r.board_option_id)),
         })),
-    seed_demo_data: () => seed(),
+    seed_demo_data: () => seed() || seedEvents(),
+
+    get_suite_rates: ({ suite }) => {
+      if (!suites().some((s) => s.id === suite)) throw { kind: "not_found", message: "Suite not found" };
+      return db.suiteRates[suite] ?? { hourly: null, min_hours: 0, half_day: null, full_day: null, setup_minutes: 60, cleardown_minutes: 30 };
+    },
+    save_suite_rates: ({ suite, rates }) => {
+      db.suiteRates[suite] = rates;
+      log(`Changed the rates for ${db.spaces.find((s) => s.id === suite)?.name}`, "space");
+    },
+    list_suite_bookings: ({ from, to }) =>
+      db.suiteBookings
+        .filter((b) => b.status !== "cancelled" && b.start < to && b.end > from)
+        .sort((a, b) => a.start.localeCompare(b.start))
+        .map(suiteEntry),
+    get_suite_booking: ({ id: bookingId }) => {
+      const b = db.suiteBookings.find((x) => x.id === bookingId);
+      if (!b) throw { kind: "not_found", message: "Suite booking not found" };
+      return suiteEntry(b);
+    },
+    save_suite_booking: ({ booking, guest }) => {
+      const before = db.suiteBookings.find((b) => b.id === booking.id);
+      if (booking.pricing.kind === "manual" && current?.role !== "admin" && JSON.stringify(before?.pricing) !== JSON.stringify(booking.pricing))
+        throw { kind: "forbidden", message: "Only an admin can set a price by hand." };
+      return saveSuiteBooking(booking, guest);
+    },
+    set_suite_booking_status: ({ id: bookingId, status }) => {
+      const b = db.suiteBookings.find((x) => x.id === bookingId);
+      const guest = db.guests.find((g) => g.id === b.guest_id);
+      return saveSuiteBooking({ ...b, status }, guest);
+    },
+    list_events: ({ from }) =>
+      db.events
+        .filter((e) => e.end_date >= from)
+        .sort((a, b) => a.start_date.localeCompare(b.start_date))
+        .map((e) => {
+          const g = db.guests.find((x) => x.id === e.organiser_id);
+          return {
+            id: e.id,
+            name: e.name,
+            kind: e.kind,
+            organiser_name: `${g.first_name} ${g.last_name}`.trim(),
+            start_date: e.start_date,
+            end_date: e.end_date,
+            suite_bookings: db.suiteBookings.filter((b) => b.event_id === e.id && b.status !== "cancelled").length,
+            held_rooms: linked(e.id).filter((b) => b.booking.status === "provisional").length,
+            release_date: e.room_block?.release_date ?? null,
+          };
+        }),
+    get_event: ({ id: eventId }) => {
+      const ev = db.events.find((e) => e.id === eventId);
+      if (!ev) throw { kind: "not_found", message: "Event not found" };
+      return eventDetail(ev);
+    },
+    save_event: ({ event, organiser }) => saveEvent(event, organiser),
 
     session_status: () => ({
       needs_setup: db.users.length === 0,

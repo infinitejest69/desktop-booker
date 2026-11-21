@@ -2,6 +2,7 @@
   import type { GridCell } from "@ui-sdk/core";
   import type { ChartEntry } from "../bindings/ChartEntry";
   import type { Space } from "../bindings/Space";
+  import { boardLabel } from "../booking/board";
   import { datesFrom, formatDay, isWeekend, today } from "../dates";
   import { ChartCell, ChartGrid, ChartHeader, ChartRow, ChartRowHeader } from "./chart-parts";
   import { barAt, layoutBars } from "./layout";
@@ -60,7 +61,7 @@
     const bar = barAt(bars.get(room.id), col);
     if (!bar) return `Room ${room.name}, ${day}: free`;
     const e = bar.entry;
-    return `Room ${room.name}, ${day}: ${e.guest_name}, ${e.reference}, ${statusLabel[e.status] ?? e.status}`;
+    return `Room ${room.name}, ${day}: ${e.guest_name}, ${e.reference}, ${boardLabel(e.board)}, ${statusLabel[e.status] ?? e.status}`;
   }
 
   function onActivate(cell: GridCell) {

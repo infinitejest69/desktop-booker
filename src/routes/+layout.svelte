@@ -108,6 +108,8 @@
     { href: "/", label: "Dashboard" },
     { href: "/chart", label: "Tariff chart" },
     { href: "/bookings", label: "Bookings" },
+    { href: "/suites", label: "Function suites" },
+    { href: "/events", label: "Events" },
     { href: "/floor-plan", label: "Floor plan" },
   ];
   const hotel = [

@@ -1,12 +1,14 @@
 <script lang="ts">
-  import { tick } from "svelte";
+  import { onMount, tick } from "svelte";
   import { confirm } from "@ui-sdk/svelte/alert-dialog";
   import { Button } from "@ui-sdk/svelte/button";
   import { toast } from "@ui-sdk/svelte/toast";
   import { api, errorMessage } from "../api";
+  import type { BoardOption } from "../bindings/BoardOption";
   import type { BookingDetail } from "../bindings/BookingDetail";
   import { daysBetween, formatDay } from "../dates";
   import { formatMoney } from "../format";
+  import { boardName } from "./board";
   import { actionsFor, statusLabel, type StatusAction } from "./status";
 
   interface Props {
@@ -18,6 +20,14 @@
 
   let { detail, roomNames, onChange, compact = false }: Props = $props();
   let actionsEl = $state<HTMLElement>();
+  let boards = $state<BoardOption[]>([]);
+
+  onMount(() => {
+    api
+      .listBoardOptions()
+      .then((b) => (boards = b))
+      .catch((error) => toast.error("Couldn't load board options", { description: errorMessage(error) }));
+  });
 
   async function change(action: StatusAction) {
     const ref = detail.booking.reference;
@@ -70,6 +80,7 @@
           ? `, ${room.children} child${room.children === 1 ? "" : "ren"}`
           : ""}
       </p>
+      <p class="board">Board: <strong>{boardName(room.board_option_id, boards)}</strong></p>
       {#if pricing && pricing.nights.length}
         {#if compact}
           <p>{formatMoney(pricing.total)}{room.price_override !== null ? " (set by hand)" : ""}</p>

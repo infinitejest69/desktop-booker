@@ -10,16 +10,17 @@
 
 use booker_core::{
     AuditEntry, BoardOption, BoardOptionId, Booking, BookingDetail, BookingId, BookingListItem,
-    BookingStatus, ChartEntry, DateRange, Floor, FloorId, Guest, Permission, PropertySettings,
-    RateRule, RateRuleId, Role, RoomType, RoomTypeId, SessionStatus, Space, SpaceId, StayQuote,
-    User, UserId, validate_pin,
+    BookingStatus, ChartEntry, DateRange, Event, EventDetail, EventId, EventListItem, Floor,
+    FloorId, Guest, Permission, PropertySettings, RateRule, RateRuleId, Role, RoomType, RoomTypeId,
+    SessionStatus, Space, SpaceId, StayQuote, SuiteBooking, SuiteBookingEntry, SuiteBookingId,
+    SuiteBookingStatus, SuitePricing, SuiteRates, User, UserId, validate_pin,
 };
 use booker_services::pin::{hash_pin, verify_pin};
 use booker_store::{
-    BookingRepo, FloorRepo, GuestRepo, RateRepo, RoomTypeRepo, SettingsRepo, SpaceRepo,
-    SqliteStore, StoreError,
+    BookingRepo, EventRepo, FloorRepo, GuestRepo, RateRepo, RoomTypeRepo, SettingsRepo, SpaceRepo,
+    SqliteStore, StoreError, SuiteRepo,
 };
-use chrono::NaiveDate;
+use chrono::{NaiveDate, NaiveDateTime};
 use tauri::State;
 
 use crate::error::{CmdResult, CommandError};
@@ -469,5 +470,157 @@ pub async fn search_bookings(
 #[tauri::command]
 pub async fn seed_demo_data(store: Store<'_>, session: Sess<'_>) -> CmdResult<bool> {
     session.require(&store, Permission::ManageSetup)?;
-    Ok(store.seed_demo().await?)
+    // A new demo hotel comes with events; an existing one gets them added.
+    let hotel = store.seed_demo().await?;
+    Ok(hotel || store.seed_demo_events().await?)
+}
+
+// ---------------------------------------------------------------------------
+// Function suites
+// ---------------------------------------------------------------------------
+
+#[tauri::command]
+pub async fn get_suite_rates(
+    store: Store<'_>,
+    session: Sess<'_>,
+    suite: SpaceId,
+) -> CmdResult<SuiteRates> {
+    Ok(session
+        .require(&store, Permission::ViewHotel)?
+        .get_suite_rates(suite)
+        .await?)
+}
+
+#[tauri::command]
+pub async fn save_suite_rates(
+    store: Store<'_>,
+    session: Sess<'_>,
+    suite: SpaceId,
+    rates: SuiteRates,
+) -> CmdResult<()> {
+    Ok(session
+        .require(&store, Permission::ManageSetup)?
+        .save_suite_rates(suite, &rates)
+        .await?)
+}
+
+#[tauri::command]
+pub async fn list_suite_bookings(
+    store: Store<'_>,
+    session: Sess<'_>,
+    from: NaiveDateTime,
+    to: NaiveDateTime,
+) -> CmdResult<Vec<SuiteBookingEntry>> {
+    Ok(session
+        .require(&store, Permission::ViewHotel)?
+        .list_suite_bookings(from, to)
+        .await?)
+}
+
+#[tauri::command]
+pub async fn get_suite_booking(
+    store: Store<'_>,
+    session: Sess<'_>,
+    id: SuiteBookingId,
+) -> CmdResult<SuiteBookingEntry> {
+    Ok(session
+        .require(&store, Permission::ViewHotel)?
+        .get_suite_booking(id)
+        .await?)
+}
+
+#[tauri::command]
+pub async fn save_suite_booking(
+    store: Store<'_>,
+    session: Sess<'_>,
+    booking: SuiteBooking,
+    guest: Guest,
+) -> CmdResult<SuiteBookingEntry> {
+    let acting = session.require(&store, Permission::MakeBookings)?;
+    // Staff may keep a hand-set price an admin chose, but not set or change one.
+    if matches!(booking.pricing, SuitePricing::Manual { .. })
+        && session.require(&store, Permission::OverridePrices).is_err()
+    {
+        let before = match acting.get_suite_booking(booking.id).await {
+            Ok(e) => Some(e.booking.pricing),
+            Err(StoreError::NotFound { .. }) => None,
+            Err(e) => return Err(e.into()),
+        };
+        if before != Some(booking.pricing) {
+            return Err(CommandError::forbidden(
+                "Only an admin can set a price by hand.",
+            ));
+        }
+    }
+    Ok(acting.save_suite_booking(&booking, &guest).await?)
+}
+
+#[tauri::command]
+pub async fn set_suite_booking_status(
+    store: Store<'_>,
+    session: Sess<'_>,
+    id: SuiteBookingId,
+    status: SuiteBookingStatus,
+) -> CmdResult<SuiteBookingEntry> {
+    let needed = match status {
+        SuiteBookingStatus::Cancelled => Permission::CancelBookings,
+        _ => Permission::MakeBookings,
+    };
+    Ok(session
+        .require(&store, needed)?
+        .set_suite_booking_status(id, status)
+        .await?)
+}
+
+// ---------------------------------------------------------------------------
+// Events
+// ---------------------------------------------------------------------------
+
+fn today() -> NaiveDate {
+    chrono::Local::now().date_naive()
+}
+
+#[tauri::command]
+pub async fn list_events(
+    store: Store<'_>,
+    session: Sess<'_>,
+    from: NaiveDate,
+) -> CmdResult<Vec<EventListItem>> {
+    Ok(session
+        .require(&store, Permission::ViewHotel)?
+        .list_events(from)
+        .await?)
+}
+
+#[tauri::command]
+pub async fn get_event(store: Store<'_>, session: Sess<'_>, id: EventId) -> CmdResult<EventDetail> {
+    Ok(session
+        .require(&store, Permission::ViewHotel)?
+        .get_event(id)
+        .await?)
+}
+
+#[tauri::command]
+pub async fn save_event(
+    store: Store<'_>,
+    session: Sess<'_>,
+    event: Event,
+    organiser: Guest,
+) -> CmdResult<EventDetail> {
+    let acting = session.require(&store, Permission::MakeBookings)?;
+    // The room block's group rate is a hand-set room price, so it's admin only.
+    if session.require(&store, Permission::OverridePrices).is_err() {
+        let before = match acting.get_event(event.id).await {
+            Ok(d) => d.event.room_block.map(|b| b.rate),
+            Err(StoreError::NotFound { .. }) => None,
+            Err(e) => return Err(e.into()),
+        };
+        let rate = event.room_block.map(|b| b.rate);
+        if rate.is_some() && rate != before {
+            return Err(CommandError::forbidden(
+                "Only an admin can set a room block's group rate.",
+            ));
+        }
+    }
+    Ok(acting.save_event(&event, &organiser, today()).await?)
 }

@@ -5,7 +5,7 @@ mod commands;
 mod error;
 mod session;
 
-use booker_store::{SettingsRepo, SqliteStore};
+use booker_store::{EventRepo, SettingsRepo, SqliteStore};
 use session::Session;
 use tauri::{Manager, RunEvent};
 
@@ -25,6 +25,13 @@ pub fn run() {
             let idle = tauri::async_runtime::block_on(store.get_settings())
                 .map(|s| s.idle_lock_minutes)
                 .unwrap_or(15);
+            // Rooms held for events go back on sale once their release date comes.
+            let today = chrono::Local::now().date_naive();
+            match tauri::async_runtime::block_on(store.release_due_blocks(today)) {
+                Ok(0) => {}
+                Ok(n) => println!("[desktop-booker] released {n} held block room(s)"),
+                Err(e) => eprintln!("[desktop-booker] couldn't release held rooms: {e}"),
+            }
             app.manage(Session::new(idle));
             app.manage(store);
             Ok(())
@@ -64,6 +71,15 @@ pub fn run() {
             commands::set_booking_status,
             commands::search_bookings,
             commands::seed_demo_data,
+            commands::get_suite_rates,
+            commands::save_suite_rates,
+            commands::list_suite_bookings,
+            commands::get_suite_booking,
+            commands::save_suite_booking,
+            commands::set_suite_booking_status,
+            commands::list_events,
+            commands::get_event,
+            commands::save_event,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

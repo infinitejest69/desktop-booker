@@ -7,15 +7,15 @@
 - [x] `core`: time-slot availability with setup/teardown buffers
 - [x] `core`: hire types: hourly / half-day / day, with pricing
 - [x] `store`: migrations for `suite_bookings`, `events`, event links
-- [ ] Suite booking: layout, attendees (≤ capacity for that layout), notes, catering requirements
-- [ ] Event container: name, type (wedding/conference/dinner…), contact, date(s)
-- [ ] Link suite bookings + room block (held rooms with release date) to an event
+- [x] Suite booking: layout, attendees (≤ capacity for that layout), notes, catering requirements
+- [x] Event container: name, type (wedding/conference/dinner…), contact, date(s)
+- [x] Link suite bookings + room block (held rooms with release date) to an event
 - [ ] Packages (e.g. wedding package: suite + per-head catering + room block rate)
-- [ ] Catering numbers / dietary summary per event
-- [ ] UI: suite calendar (day/week timeline per suite)
-- [ ] UI: event page bringing everything together
+- [x] Catering numbers / dietary summary per event
+- [x] UI: suite calendar (day/week timeline per suite)
+- [x] UI: event page bringing everything together
 - [ ] Floor-plan view shows suite occupancy for a chosen time
-- [ ] Tests: buffer overlaps, capacity per layout, room-block release
+- [x] Tests: buffer overlaps, capacity per layout, room-block release
 
 ## Acceptance
 - Two suite bookings that collide only through buffers are rejected.
@@ -40,11 +40,26 @@
 - **UI:** suite day/week timeline, suite booking form, event page (suites, sittings, dietary summary, room block, total value), floor plan shows suite use at a chosen time.
 - **Progress:** `booker-core` now has `suites.rs` (rate card, layouts, `SuitePricing`, `SuiteBooking`, `validate_suite_booking`, `price_suite_booking`) and `events.rs` (`Event`, `EventKind`, `CateringSitting`, `catering_totals`, `RoomBlock`, `validate_event`, `block_due_for_release`), with 11 tests. **Next:** store migration `0004` (suite rate columns on `spaces`, `suite_bookings`, `events`, `event_sittings`, a link from `bookings` to `event_id`), repositories with audit, commands, then UI.
 
-## Status at pause (2026-11-21)
-**Done:** core rules for suites and events (`suites.rs`, `events.rs`, 11 tests) and migration `0004_suites_events.sql` (applies cleanly; all store tests pass).
+**More decisions (2026-11-21):**
+- A room block is a set of ordinary bedroom bookings linked by `bookings.event_id`. A room is *held* while its booking is provisional; confirming it (usually after changing the guest to the person staying) means it has been taken up. Every live linked booking counts towards the block, so resizing never touches a taken-up room.
+- Held rooms are priced at the group rate for the whole stay (stored as the room's price override). They are booked to the organiser, sleep the room type's default occupancy, with no board.
+- The group rate counts as a hand-set price, so only an admin can set or change it. Staff can still create events, sittings and suite bookings, and per-head (package) suite pricing is open to staff. A *manual* suite price is admin only.
+- Packages are covered by per-head suite pricing (e.g. day-delegate rate) plus the block's group rate; no separate package object for now.
 
-**Next, in order:**
-1. **Store:** suite rate card get/save (columns on `spaces`); `SuiteBookingRepo` (list by suite and time range, save with `validate_suite_booking` + price snapshot + audit, set status); `EventRepo` (list, get with sittings, suite bookings and block bookings, save). Room block: on save, create or adjust provisional bookings linked by `bookings.event_id` at the group rate; `release_due_blocks(today)` cancels unclaimed ones (run at startup).
-2. **Commands** with permissions (`MakeBookings` / `CancelBookings`; hand-set `Manual` price needs `OverridePrices`). Then `pnpm gen:types`.
-3. **UI:** suite rates on the suite panel in Floors and layout; suite timeline (day/week); suite booking form; Events list + event page (suites, sittings with dietary summary, room block, total value); floor plan suite use at a chosen time; dashboard "blocks due for release".
-4. **Fake backend + Playwright tests;** demo data with a wedding.
+## Status (2026-11-21)
+**Done:**
+- core: `suites.rs`, `events.rs`, room-block planner (`plan_room_block`, `pick_block_rooms`) and the `EventDetail` / `EventListItem` / `SuiteBookingEntry` views. 81 core tests.
+- store: migration `0004`, `SuiteRepo` (rate cards, suite bookings with price snapshot, buffer clash check and audit) and `EventRepo` (events with sittings, room-block sync, `release_due_blocks`), in `crates/store/src/events.rs`, with 6 integration tests.
+- commands: `get/save_suite_rates`, `list/get/save_suite_booking`, `set_suite_booking_status`, `list/get/save_event`, with permission checks. Held rooms past their release date are released at app start.
+
+**Screens (2026-11-21):**
+- **Function suites** (main nav): day timeline per suite with setup and clear-down hatched, a week grid, and the day's hires in a table. Clicking a hire opens the suite booking form; clicking a suite name or a free day starts a new one.
+- **Suite booking form** (`/suites/booking`): suite, optional event (fills in organiser and date), times (an end before the start means past midnight), layout with seats, attendees, buffers, pricing with a live price, organiser, status, notes, cancel.
+- **Events** (main nav): list (with past events optional), event page (value, numbers, organiser, running order, suites, sittings with dietary lists, bedrooms with held rooms and release date), new/edit form with sittings and the room block. Staff see the group rate but can't change it.
+- **Floors and layout:** a suite's hire rates and default buffers under its details.
+- **Dashboard:** events in the next two weeks and a notice when held rooms are about to be released.
+- **Demo data:** suite rates, a wedding (two suites, two sittings, a block of doubles), a conference and a club dinner. An existing demo hotel gets them from Events, "Load demo events".
+
+**Left in this phase:**
+1. Floor plan: show suite use at a chosen time.
+2. Packages: decide whether per-head pricing plus the block's group rate is enough (see decisions above), then tick or build.

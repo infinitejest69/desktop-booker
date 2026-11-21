@@ -13,10 +13,11 @@ use std::future::Future;
 
 use booker_core::{
     BoardOption, BoardOptionId, Booking, BookingDetail, BookingId, BookingListItem, BookingStatus,
-    ChartEntry, DateRange, Floor, FloorId, Guest, PropertySettings, RateRule, RateRuleId, RoomType,
-    RoomTypeId, Space, SpaceId, StayQuote,
+    ChartEntry, DateRange, Event, EventDetail, EventId, EventListItem, Floor, FloorId, Guest,
+    PropertySettings, RateRule, RateRuleId, RoomType, RoomTypeId, Space, SpaceId, StayQuote,
+    SuiteBooking, SuiteBookingEntry, SuiteBookingId, SuiteBookingStatus, SuiteRates,
 };
-use chrono::NaiveDate;
+use chrono::{NaiveDate, NaiveDateTime};
 
 use crate::StoreResult;
 
@@ -115,4 +116,60 @@ pub trait BookingRepo {
         &self,
         query: &str,
     ) -> impl Future<Output = StoreResult<Vec<BookingListItem>>> + Send;
+}
+
+pub trait SuiteRepo {
+    /// A suite's rate card and default setup / clear-down times.
+    fn get_suite_rates(
+        &self,
+        suite: SpaceId,
+    ) -> impl Future<Output = StoreResult<SuiteRates>> + Send;
+    fn save_suite_rates(
+        &self,
+        suite: SpaceId,
+        rates: &SuiteRates,
+    ) -> impl Future<Output = StoreResult<()>> + Send;
+    /// Live (not cancelled) suite bookings overlapping `[from, to)`, by start time.
+    fn list_suite_bookings(
+        &self,
+        from: NaiveDateTime,
+        to: NaiveDateTime,
+    ) -> impl Future<Output = StoreResult<Vec<SuiteBookingEntry>>> + Send;
+    fn get_suite_booking(
+        &self,
+        id: SuiteBookingId,
+    ) -> impl Future<Output = StoreResult<SuiteBookingEntry>> + Send;
+    /// Creates or updates a suite booking and its organiser, after every rule
+    /// passes. The price is fixed now and kept until the times, numbers or
+    /// pricing change.
+    fn save_suite_booking(
+        &self,
+        booking: &SuiteBooking,
+        guest: &Guest,
+    ) -> impl Future<Output = StoreResult<SuiteBookingEntry>> + Send;
+    fn set_suite_booking_status(
+        &self,
+        id: SuiteBookingId,
+        status: SuiteBookingStatus,
+    ) -> impl Future<Output = StoreResult<SuiteBookingEntry>> + Send;
+}
+
+pub trait EventRepo {
+    /// Events ending on or after `from`, soonest first.
+    fn list_events(
+        &self,
+        from: NaiveDate,
+    ) -> impl Future<Output = StoreResult<Vec<EventListItem>>> + Send;
+    fn get_event(&self, id: EventId) -> impl Future<Output = StoreResult<EventDetail>> + Send;
+    /// Saves the event, its sittings and organiser, and brings its room block
+    /// in line: holds new rooms, reprices or releases held ones.
+    fn save_event(
+        &self,
+        event: &Event,
+        organiser: &Guest,
+        today: NaiveDate,
+    ) -> impl Future<Output = StoreResult<EventDetail>> + Send;
+    /// Releases held block rooms whose release date has come. Returns how many.
+    fn release_due_blocks(&self, today: NaiveDate)
+    -> impl Future<Output = StoreResult<u32>> + Send;
 }

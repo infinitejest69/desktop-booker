@@ -5,4 +5,8 @@ import type { BookingStatus } from "./BookingStatus";
 /**
  * A row in booking search results.
  */
-export type BookingListItem = { id: BookingId, reference: string, guest_name: string, status: BookingStatus, arrival: string, departure: string, rooms: Array<string>, };
+export type BookingListItem = { id: BookingId, reference: string, guest_name: string, status: BookingStatus, arrival: string, departure: string, rooms: Array<string>, 
+/**
+ * Board name for each room, in the same order as `rooms`; `None` means room only.
+ */
+boards: Array<string | null>, };

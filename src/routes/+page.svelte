@@ -7,12 +7,15 @@
   import type { BookingListItem } from "#lib/bindings/BookingListItem.ts";
   import type { BookingStatus } from "#lib/bindings/BookingStatus.ts";
   import type { ChartEntry } from "#lib/bindings/ChartEntry.ts";
+  import type { EventListItem } from "#lib/bindings/EventListItem.ts";
   import type { Space } from "#lib/bindings/Space.ts";
+  import { boardLabel, boardsSummary } from "#lib/booking/board.ts";
   import { statusLabel } from "#lib/booking/status.ts";
   import TariffChart from "#lib/chart/TariffChart.svelte";
   import { todaySummary } from "#lib/dashboard/today.ts";
   import { addDays, daysBetween, formatDay, today } from "#lib/dates.ts";
   import { useSession } from "#lib/session/session.svelte.ts";
+  import { eventKindLabel } from "#lib/suites/suites.ts";
 
   const session = useSession();
 
@@ -25,6 +28,7 @@
   let codes = $state(new Map<string, string>());
   let entries = $state<ChartEntry[]>([]);
   let upcoming = $state<BookingListItem[]>([]);
+  let events = $state<EventListItem[]>([]);
   let busy = $state<string | null>(null);
   let chartDays = $state(14);
 
@@ -57,11 +61,13 @@
   }
 
   async function loadBookings() {
-    const [e, u] = await Promise.all([
+    const [e, u, ev] = await Promise.all([
       api.chart(addDays(day, -1), addDays(day, Math.max(chartDays, 2))),
       api.searchBookings(""),
+      api.listEvents(day).catch(() => []),
     ]);
     entries = e;
+    events = ev;
     upcoming = u.filter((b) => b.arrival > day).slice(0, 8);
   }
 
@@ -94,6 +100,13 @@
       busy = null;
     }
   }
+
+  /** Events starting in the next two weeks. */
+  const soonEvents = $derived(events.filter((e) => e.start_date <= addDays(day, 14)));
+  /** Blocks whose held rooms go back on sale within two weeks. */
+  const releasing = $derived(
+    events.filter((e) => e.release_date && e.held_rooms > 0 && e.release_date <= addDays(day, 14)),
+  );
 
   function guests(e: ChartEntry): string {
     return `${e.adults} adult${e.adults === 1 ? "" : "s"}${e.children ? `, ${e.children} child${e.children === 1 ? "" : "ren"}` : ""}`;
@@ -154,8 +167,9 @@
               <li>
                 <span class="fob">{roomName.get(a.space_id)}</span>
                 <div class="person">
-                  <a href={`/bookings/${a.booking_id}`} class="who">{a.guest_name}</a>
+                  <span class="name-line"><a href={`/bookings/${a.booking_id}`} class="who">{a.guest_name}</a> <span class="ref" title="Booking number">{a.reference}</span></span>
                   <span class="muted">{guests(a)}, {nights(a)}{a.status === "provisional" ? ", provisional" : ""}</span>
+                  <span class="board">{boardLabel(a.board)}</span>
                 </div>
                 <Button data-variant="solid" disabled={busy === a.booking_room_id} onclick={() => setStatus(a, "checked_in")}>
                   Check in
@@ -176,8 +190,8 @@
               <li>
                 <span class="fob">{roomName.get(d.space_id)}</span>
                 <div class="person">
-                  <a href={`/bookings/${d.booking_id}`} class="who">{d.guest_name}</a>
-                  <span class="muted">Booking {d.reference}</span>
+                  <span class="name-line"><a href={`/bookings/${d.booking_id}`} class="who">{d.guest_name}</a> <span class="ref" title="Booking number">{d.reference}</span></span>
+                  <span class="board">{boardLabel(d.board)}</span>
                 </div>
                 {#if d.status === "checked_in"}
                   <Button data-variant="solid" disabled={busy === d.booking_room_id} onclick={() => setStatus(d, "checked_out")}>
@@ -197,12 +211,15 @@
       <section class="panel" aria-labelledby="inhouse-heading">
         <h2 id="inhouse-heading">In house <span class="count">{summary.inHouse.length}</span></h2>
         {#if summary.inHouse.length}
-          <ul class="people compact">
+          <ul class="people">
             {#each summary.inHouse as h (h.booking_room_id)}
               <li>
                 <span class="fob">{roomName.get(h.space_id)}</span>
-                <a href={`/bookings/${h.booking_id}`} class="who">{h.guest_name}</a>
-                <span class="muted">leaves {formatDay(h.stay.end, { weekday: "long", day: "numeric", month: "short" })}</span>
+                <div class="person">
+                  <span class="name-line"><a href={`/bookings/${h.booking_id}`} class="who">{h.guest_name}</a> <span class="ref" title="Booking number">{h.reference}</span></span>
+                  <span class="muted">Leaves {formatDay(h.stay.end, { weekday: "long", day: "numeric", month: "short" })}</span>
+                  <span class="board">{boardLabel(h.board)}</span>
+                </div>
               </li>
             {/each}
           </ul>
@@ -211,6 +228,38 @@
         {/if}
       </section>
     </div>
+
+    {#if soonEvents.length || releasing.length}
+      <section class="panel events" aria-labelledby="events-heading">
+        <div class="section-head">
+          <h2 id="events-heading">Events in the next two weeks</h2>
+          <a href="/events" class="link-button">All events</a>
+        </div>
+        {#if soonEvents.length}
+          <ul class="event-list">
+            {#each soonEvents as ev (ev.id)}
+              <li>
+                <span class="when">{formatDay(ev.start_date, { weekday: "short", day: "numeric", month: "short" })}</span>
+                <a href={`/events/${ev.id}`} class="who">{ev.name}</a>
+                <span class="muted">
+                  {eventKindLabel[ev.kind]}, {ev.suite_bookings} suite booking{ev.suite_bookings === 1 ? "" : "s"}
+                </span>
+              </li>
+            {/each}
+          </ul>
+        {:else}
+          <p class="muted">No events in the next two weeks.</p>
+        {/if}
+        {#each releasing as ev (ev.id)}
+          <p class="release" role="note">
+            <strong>{ev.held_rooms} held room{ev.held_rooms === 1 ? "" : "s"}</strong> for
+            <a href={`/events/${ev.id}`}>{ev.name}</a> go back on sale on
+            {formatDay(ev.release_date ?? "", { weekday: "long", day: "numeric", month: "long" })} unless guests
+            take them up.
+          </p>
+        {/each}
+      </section>
+    {/if}
 
     <section aria-labelledby="chart-heading" class="chart-section">
       <div class="section-head">
@@ -237,14 +286,16 @@
       </div>
       {#if upcoming.length}
         <table class="list">
-          <thead><tr><th>Arrival</th><th>Guest</th><th>Rooms</th><th>Nights</th><th>Status</th></tr></thead>
+          <thead><tr><th>Arrival</th><th>Booking</th><th>Guest</th><th>Rooms</th><th>Nights</th><th>Board</th><th>Status</th></tr></thead>
           <tbody>
             {#each upcoming as b (b.id)}
               <tr>
                 <td>{formatDay(b.arrival, { weekday: "short", day: "numeric", month: "short" })}</td>
-                <td><a href={`/bookings/${b.id}`}>{b.guest_name}</a></td>
+                <td><a href={`/bookings/${b.id}`}>{b.reference}</a></td>
+                <td>{b.guest_name}</td>
                 <td>{b.rooms.join(", ")}</td>
                 <td>{daysBetween(b.arrival, b.departure)}</td>
+                <td>{boardsSummary(b.boards)}</td>
                 <td><span class="status" data-status={b.status}>{statusLabel[b.status]}</span></td>
               </tr>
             {/each}
@@ -332,13 +383,63 @@
     margin-inline-end: auto;
   }
 
-  .people.compact li {
+  .name-line {
+    display: flex;
     flex-wrap: wrap;
+    align-items: baseline;
+    column-gap: calc(var(--ui-spacing) * 2);
+  }
+
+  .ref {
+    font-size: 0.875rem;
+    font-variant-numeric: tabular-nums lining-nums;
+    color: var(--ink-muted);
+  }
+
+  .board {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--ink);
   }
 
   .who {
     font-weight: 700;
     color: var(--ink);
+  }
+
+  .events {
+    margin-bottom: calc(var(--ui-spacing) * 6);
+  }
+
+  .event-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .event-list li {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: calc(var(--ui-spacing) * 3);
+    padding: calc(var(--ui-spacing) * 2) 0;
+    border-bottom: 1px solid var(--ui-border);
+  }
+
+  .event-list li:last-child {
+    border-bottom: 0;
+  }
+
+  .when {
+    min-width: 7rem;
+    font-weight: 600;
+  }
+
+  .release {
+    margin: calc(var(--ui-spacing) * 3) 0 0;
+    padding: calc(var(--ui-spacing) * 2) calc(var(--ui-spacing) * 3);
+    border-left: 3px solid var(--brass);
+    background: var(--brass-tint);
   }
 
   .chart-section {

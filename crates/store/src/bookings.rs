@@ -18,16 +18,16 @@ use crate::rows::{int, uuid};
 use crate::sqlite::{load_room_types, load_spaces};
 use crate::{SqliteStore, StoreError, StoreResult};
 
-fn date(s: &str) -> StoreResult<NaiveDate> {
+pub(crate) fn date(s: &str) -> StoreResult<NaiveDate> {
     s.parse()
         .map_err(|e| StoreError::Corrupt(format!("bad date {s:?}: {e}")))
 }
 
-fn parse<T: std::str::FromStr<Err = String>>(s: &str) -> StoreResult<T> {
+pub(crate) fn parse<T: std::str::FromStr<Err = String>>(s: &str) -> StoreResult<T> {
     s.parse().map_err(StoreError::Corrupt)
 }
 
-fn full_name(first: &str, last: &str) -> String {
+pub(crate) fn full_name(first: &str, last: &str) -> String {
     format!("{} {}", first.trim(), last.trim())
         .trim()
         .to_string()
@@ -218,6 +218,7 @@ struct ChartRow {
     check_out: String,
     adults: i64,
     children: i64,
+    board: Option<String>,
 }
 
 #[derive(sqlx::FromRow)]
@@ -230,6 +231,7 @@ struct ListRow {
     arrival: String,
     departure: String,
     rooms: String,
+    boards: String,
 }
 
 // ---------------------------------------------------------------------------
@@ -257,7 +259,7 @@ async fn load_boards(conn: &mut SqliteConnection) -> StoreResult<Vec<BoardOption
     rows.into_iter().map(BoardOption::try_from).collect()
 }
 
-async fn load_guest(conn: &mut SqliteConnection, id: GuestId) -> StoreResult<Guest> {
+pub(crate) async fn load_guest(conn: &mut SqliteConnection, id: GuestId) -> StoreResult<Guest> {
     let row: Option<GuestRow> = sqlx::query_as(
         "SELECT id, first_name, last_name, email, phone, address, notes FROM guests WHERE id = ?",
     )
@@ -268,7 +270,10 @@ async fn load_guest(conn: &mut SqliteConnection, id: GuestId) -> StoreResult<Gue
         .try_into()
 }
 
-async fn load_booking(conn: &mut SqliteConnection, id: BookingId) -> StoreResult<Option<Booking>> {
+pub(crate) async fn load_booking(
+    conn: &mut SqliteConnection,
+    id: BookingId,
+) -> StoreResult<Option<Booking>> {
     let row: Option<BookingRow> = sqlx::query_as(
         "SELECT id, reference, guest_id, status, source, notes FROM bookings
          WHERE id = ? AND deleted_at IS NULL",
@@ -328,7 +333,7 @@ async fn load_nights(
 }
 
 /// Rooms held (not cancelled / no-show) by any booking, overlapping `[from, to)`.
-async fn load_occupancy(
+pub(crate) async fn load_occupancy(
     conn: &mut SqliteConnection,
     from: NaiveDate,
     to: NaiveDate,
@@ -373,7 +378,10 @@ async fn next_reference(conn: &mut SqliteConnection, year: i32) -> StoreResult<S
     ))
 }
 
-async fn detail(conn: &mut SqliteConnection, id: BookingId) -> StoreResult<BookingDetail> {
+pub(crate) async fn detail(
+    conn: &mut SqliteConnection,
+    id: BookingId,
+) -> StoreResult<BookingDetail> {
     let booking = load_booking(conn, id)
         .await?
         .ok_or(StoreError::NotFound { what: "Booking" })?;
@@ -413,8 +421,30 @@ fn same_stay(old: &BookingRoom, new: &BookingRoom) -> bool {
         && old.board_option_id == new.board_option_id
 }
 
+/// Inserts or updates a guest (already validated) inside the caller's transaction.
+pub(crate) async fn upsert_guest(tx: &mut SqliteConnection, guest: &Guest) -> StoreResult<()> {
+    sqlx::query(
+        "INSERT INTO guests (id, first_name, last_name, email, phone, address, notes)
+         VALUES (?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT (id) DO UPDATE SET
+            first_name = excluded.first_name, last_name = excluded.last_name,
+            email = excluded.email, phone = excluded.phone, address = excluded.address,
+            notes = excluded.notes, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')",
+    )
+    .bind(guest.id.to_string())
+    .bind(guest.first_name.trim())
+    .bind(guest.last_name.trim())
+    .bind(guest.email.trim())
+    .bind(guest.phone.trim())
+    .bind(guest.address.trim())
+    .bind(guest.notes.trim())
+    .execute(&mut *tx)
+    .await?;
+    Ok(())
+}
+
 /// Checks, prices and writes a booking inside the caller's transaction.
-async fn write_booking(
+pub(crate) async fn write_booking(
     tx: &mut SqliteConnection,
     booking: &Booking,
     guest: &Guest,
@@ -445,23 +475,7 @@ async fn write_booking(
     let existing = load_booking(tx, booking.id).await?;
     let mut saved_nights = load_nights(tx, booking.id).await?;
 
-    sqlx::query(
-        "INSERT INTO guests (id, first_name, last_name, email, phone, address, notes)
-         VALUES (?, ?, ?, ?, ?, ?, ?)
-         ON CONFLICT (id) DO UPDATE SET
-            first_name = excluded.first_name, last_name = excluded.last_name,
-            email = excluded.email, phone = excluded.phone, address = excluded.address,
-            notes = excluded.notes, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')",
-    )
-    .bind(guest.id.to_string())
-    .bind(guest.first_name.trim())
-    .bind(guest.last_name.trim())
-    .bind(guest.email.trim())
-    .bind(guest.phone.trim())
-    .bind(guest.address.trim())
-    .bind(guest.notes.trim())
-    .execute(&mut *tx)
-    .await?;
+    upsert_guest(tx, guest).await?;
 
     let reference = match &existing {
         Some(b) => b.reference.clone(),
@@ -607,7 +621,7 @@ async fn soft_delete(
 }
 
 /// "Added" for a new record, "Changed" for an existing one.
-fn verb(existed: bool) -> (&'static str, &'static str) {
+pub(crate) fn verb(existed: bool) -> (&'static str, &'static str) {
     if existed {
         ("updated", "Changed")
     } else {
@@ -828,10 +842,11 @@ impl BookingRepo for SqliteStore {
         let rows: Vec<ChartRow> = sqlx::query_as(
             "SELECT b.id AS booking_id, r.id AS booking_room_id, b.reference, g.first_name,
                     g.last_name, b.status, r.space_id, r.check_in, r.check_out, r.adults,
-                    r.children
+                    r.children, bo.name AS board
              FROM booking_rooms r
              JOIN bookings b ON b.id = r.booking_id
              JOIN guests g ON g.id = b.guest_id
+             LEFT JOIN board_options bo ON bo.id = r.board_option_id
              WHERE b.deleted_at IS NULL AND b.status NOT IN ('cancelled', 'no_show')
                AND r.check_in < ? AND r.check_out > ?
              ORDER BY r.check_in",
@@ -855,6 +870,7 @@ impl BookingRepo for SqliteStore {
                     },
                     adults: int(r.adults, "adults")?,
                     children: int(r.children, "children")?,
+                    board: r.board,
                 })
             })
             .collect()
@@ -953,11 +969,13 @@ impl BookingRepo for SqliteStore {
         let rows: Vec<ListRow> = sqlx::query_as(
             "SELECT b.id, b.reference, g.first_name, g.last_name, b.status,
                     min(r.check_in) AS arrival, max(r.check_out) AS departure,
-                    group_concat(s.name, ', ') AS rooms
+                    group_concat(s.name, ', ') AS rooms,
+                    group_concat(coalesce(bo.name, ''), char(31)) AS boards
              FROM bookings b
              JOIN guests g ON g.id = b.guest_id
              JOIN booking_rooms r ON r.booking_id = b.id
              JOIN spaces s ON s.id = r.space_id
+             LEFT JOIN board_options bo ON bo.id = r.board_option_id
              WHERE b.deleted_at IS NULL AND (
                 (?1 = '' AND r.check_out >= ?2)
                 OR (?1 <> '' AND (lower(b.reference) LIKE '%' || ?1 || '%'
@@ -980,6 +998,12 @@ impl BookingRepo for SqliteStore {
                     arrival: date(&r.arrival)?,
                     departure: date(&r.departure)?,
                     rooms: r.rooms.split(", ").map(str::to_string).collect(),
+                    // Unit separator between names; an empty name means room only.
+                    boards: r
+                        .boards
+                        .split('\u{1f}')
+                        .map(|b| (!b.is_empty()).then(|| b.to_string()))
+                        .collect(),
                 })
             })
             .collect()
