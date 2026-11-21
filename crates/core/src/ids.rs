@@ -80,6 +80,14 @@ define_id!(
     /// Identifies an [`crate::AuditEntry`].
     AuditId
 );
+define_id!(
+    /// Identifies an event (wedding, dinner, conference…).
+    EventId
+);
+define_id!(
+    /// Identifies a [`crate::SuiteBooking`].
+    SuiteBookingId
+);
 
 #[cfg(test)]
 mod tests {

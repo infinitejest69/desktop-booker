@@ -77,6 +77,22 @@ pub enum ValidationError {
     LastAdmin,
     #[error("Auto-lock must be between 0 (never) and 240 minutes")]
     InvalidIdleLock,
+    #[error("This suite has no {what} price; choose another way of pricing it")]
+    PriceNotOffered { what: &'static str },
+    #[error("\"{space}\" isn't a function suite")]
+    NotASuite { space: String },
+    #[error("The end time must be after the start time")]
+    EndBeforeStart,
+    #[error("This suite isn't set up for a {layout} layout")]
+    LayoutNotOffered { layout: String },
+    #[error("This layout seats at most {max}")]
+    TooManyAttendees { max: u16 },
+    #[error("{suite} is in use then (\"{other}\" at {at}, including setup and clear-down)")]
+    SuiteUnavailable {
+        suite: String,
+        other: String,
+        at: String,
+    },
 }
 
 pub type ValidationResult = Result<(), ValidationError>;

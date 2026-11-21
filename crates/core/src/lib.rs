@@ -12,6 +12,7 @@ pub mod ids;
 pub mod money;
 pub mod property;
 pub mod rates;
+pub mod suites;
 pub mod users;
 pub mod validation;
 
@@ -25,14 +26,18 @@ pub use booking::{
 pub use dates::{DateRange, MAX_NIGHTS, iso_weekday};
 pub use grid::{GridRect, MAX_GRID_CELLS};
 pub use ids::{
-    AuditId, BoardOptionId, BookingId, BookingRoomId, FloorId, GuestId, RateRuleId, RoomTypeId,
-    SpaceId, UserId,
+    AuditId, BoardOptionId, BookingId, BookingRoomId, EventId, FloorId, GuestId, RateRuleId,
+    RoomTypeId, SpaceId, SuiteBookingId, UserId,
 };
 pub use money::Money;
 pub use property::{Floor, PropertySettings, RoomType, Space, SpaceKind, SuiteCapacities};
 pub use rates::{
     Adjustment, BoardOption, NightPrice, RateRule, StayQuote, quote_stay, room_rate_for_night,
     validate_board_option, validate_rate_rule,
+};
+pub use suites::{
+    Layout, SuiteBooking, SuiteBookingStatus, SuitePricing, SuiteRates, price_suite_booking,
+    validate_suite_booking,
 };
 pub use users::{
     PIN_MAX, PIN_MIN, Permission, Role, SessionStatus, User, validate_pin, validate_user,
