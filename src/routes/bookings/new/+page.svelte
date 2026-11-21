@@ -26,7 +26,7 @@
 <div class="page">
   <Breadcrumbs
     items={chartFrom
-      ? [{ label: "Tariff chart", href: `/chart?from=${chartFrom}` }, { label: "New booking" }]
+      ? [{ label: "Booking calendar", href: `/chart?from=${chartFrom}` }, { label: "New booking" }]
       : [{ label: "Bookings", href: "/bookings" }, { label: "New booking" }]}
   />
   <div class="heading">

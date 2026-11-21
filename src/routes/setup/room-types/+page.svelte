@@ -110,7 +110,7 @@
           bind:value={draft.code}
           placeholder="DBL"
           maxlength={6}
-          description="Shown on the tariff chart"
+          description="Shown on the booking calendar"
           required
         />
       </div>

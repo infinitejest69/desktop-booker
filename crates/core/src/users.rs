@@ -64,6 +64,8 @@ pub enum Permission {
     ManageUsers,
     /// Read the audit log.
     ViewAudit,
+    /// Open Reports (occupancy, revenue, ADR and RevPAR, and their CSVs).
+    ViewReports,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -164,6 +166,7 @@ mod tests {
             Permission::ManageSetup,
             Permission::ManageUsers,
             Permission::ViewAudit,
+            Permission::ViewReports,
         ] {
             assert!(!Role::Staff.allows(p), "{p:?}");
             assert!(Role::Admin.allows(p), "{p:?}");

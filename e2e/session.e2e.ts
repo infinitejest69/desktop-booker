@@ -57,6 +57,26 @@ test.describe("lock screen", () => {
     expect(refused).toBe("forbidden");
   });
 
+  test("Reports are for admins: hidden from staff and refused by the backend", async ({ page }) => {
+    await page.getByRole("radio", { name: "Sam" }).check();
+    await page.getByLabel("PIN").fill("5678");
+    await page.getByRole("button", { name: "Sign in" }).click();
+    await expect(page.getByText("Signed in as Sam")).toBeVisible();
+    await expect(page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Reports" })).toHaveCount(0);
+
+    const refused = await page.evaluate(async () => {
+      const tauri = (window as unknown as { __TAURI_INTERNALS__: { invoke: (c: string, a: object) => Promise<unknown> } })
+        .__TAURI_INTERNALS__;
+      try {
+        await tauri.invoke("occupancy_report", { period: { start: "2026-11-01", end: "2026-12-01" } });
+        return "allowed";
+      } catch (e) {
+        return (e as { kind: string }).kind;
+      }
+    });
+    expect(refused).toBe("forbidden");
+  });
+
   test("five wrong PINs pause sign-in with a live countdown", async ({ page }) => {
     await page.clock.install();
     await page.reload();

@@ -780,6 +780,7 @@ pub async fn set_floor_housekeeping(
         .await?)
 }
 
+/// Reports are for admins, like the rest of the hotel's figures.
 #[tauri::command]
 pub async fn occupancy_report(
     store: Store<'_>,
@@ -787,7 +788,7 @@ pub async fn occupancy_report(
     period: DateRange,
 ) -> CmdResult<Vec<DayOccupancy>> {
     Ok(session
-        .require(&store, Permission::ViewHotel)?
+        .require(&store, Permission::ViewReports)?
         .occupancy_report(period)
         .await?)
 }
@@ -834,7 +835,7 @@ pub async fn report_csv(
     match report.as_str() {
         "occupancy" => {
             let days = session
-                .require(&store, Permission::ViewHotel)?
+                .require(&store, Permission::ViewReports)?
                 .occupancy_report(period)
                 .await?;
             let pct = |d: &DayOccupancy| format!("{}.{}", d.per_mille / 10, d.per_mille % 10);

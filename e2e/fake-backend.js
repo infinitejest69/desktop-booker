@@ -544,7 +544,7 @@
     "save_settings", "save_floor", "delete_floor", "save_room_type", "delete_room_type",
     "save_space", "delete_space", "save_rate_rule", "delete_rate_rule", "save_board_option",
     "delete_board_option", "list_users", "save_user", "list_audit", "seed_demo_data",
-    "save_suite_rates", "save_tax_rate", "save_invoice_settings", "erase_guest", "merge_guests", "revenue_report", "room_kpis", "save_backup_settings", "backup_now", "restore_backup", "save_email_settings", "save_email_template", "send_test_email",
+    "save_suite_rates", "save_tax_rate", "save_invoice_settings", "erase_guest", "merge_guests", "revenue_report", "room_kpis", "occupancy_report", "report_csv", "save_report_csv", "save_backup_settings", "backup_now", "restore_backup", "save_email_settings", "save_email_template", "send_test_email",
   ]);
 
   const guestName = (b) => {

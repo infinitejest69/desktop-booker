@@ -7,7 +7,17 @@ Built with **Rust + Tauri 2** and a **SvelteKit 3 (Svelte 5)** frontend. Runs on
 - Requirements & architecture: [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md)
 - Roadmap & progress: [docs/ROADMAP.md](docs/ROADMAP.md)
 
-> **Status:** Phases 0–3 done · Phase 4 (function suites & events) in progress.
+> **Status:** Phases 0–7 done (v1 features) · Phase 8 (carried-over checks on real machines) in progress · Phase 9 (report & dashboard builder) and Phase 10 (backlog) planned.
+
+## What's in it
+
+- **Dashboard:** today's arrivals, departures and events, a small plan of each floor, backup warnings.
+- **Bookings:** one menu item with two views: the **Calendar** (rooms × nights; click a free night to book, a booking to open it) and the **List** (search by reference, name or email).
+- **Function suites & events:** suite hire by the hour, events with catering sittings and room blocks.
+- **Floor plan and housekeeping:** each floor as a plan or as cards; availability, dirty / clean / ready, whole floors at once.
+- **Guests:** profiles, history, merging duplicates, data export.
+- **Invoices & payments**, **email** to guests through the hotel's Gmail.
+- **Admin only** (below the divider in the menu): **Reports** (occupancy, revenue, ADR & RevPAR, CSV) and **My hotel** (setup, rates, users, backups, audit log).
 
 ## Prerequisites
 
@@ -40,6 +50,11 @@ Opens the DesktopBooker window. On a new database it first asks you to create th
 
 - **NVIDIA on Linux, window blank or flickering:** `WEBKIT_DISABLE_DMABUF_RENDERER=1 pnpm tauri dev`. The `MESA-EGL` warnings in the terminal are harmless.
 - **Frontend only, in a browser:** `pnpm dev`, then open http://localhost:1420. Calls into Rust won't work there.
+- **`Port 1420 is already in use`:** another dev server is still running (an old `pnpm dev` or `pnpm tauri dev` in another terminal, or one left behind after a crash). Stop it with Ctrl+C in that terminal, or find and stop it:
+  ```bash
+  ss -ltnp | grep 1420     # shows the pid
+  kill <pid>
+  ```
 
 ## Build a release
 
@@ -51,6 +66,24 @@ pnpm tauri build --no-bundle  # just the executable (faster)
 - Installers: `target/release/bundle/` (Linux: AppImage / deb / rpm; Windows: msi / nsis; macOS: dmg / app)
 
 Each OS's installers have to be built on that OS. CI checks all three build on every push to `main`.
+
+**Testing the Linux build locally:**
+
+1. Stop any running `pnpm tauri dev` window (both use the same database).
+2. `pnpm tauri build`. The first time takes a few minutes and downloads the AppImage tools.
+3. Run it:
+   ```bash
+   ./target/release/desktop-booker                                        # the bare executable
+   ./target/release/bundle/appimage/DesktopBooker_0.1.0_amd64.AppImage    # the AppImage (needs fuse2 on Arch)
+   ```
+   No FUSE? `--appimage-extract-and-run` after the AppImage path works without it. The `.deb` (Debian/Ubuntu) and `.rpm` (Fedora) are in `target/release/bundle/` too, for testing on those systems.
+4. **To test it like a clean install**, move the app's data aside first and put it back afterwards:
+   ```bash
+   mv ~/.local/share/com.desktopbooker.app ~/.local/share/com.desktopbooker.app.dev
+   # …test: first-run admin, Load demo hotel, a booking, a backup and restore…
+   rm -rf ~/.local/share/com.desktopbooker.app
+   mv ~/.local/share/com.desktopbooker.app.dev ~/.local/share/com.desktopbooker.app
+   ```
 
 **Publishing installers:** push a version tag and GitHub builds them all:
 

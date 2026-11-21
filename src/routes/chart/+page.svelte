@@ -20,6 +20,7 @@
   import type { RoomType } from "#lib/bindings/RoomType.ts";
   import type { Space } from "#lib/bindings/Space.ts";
   import TariffChart from "#lib/chart/TariffChart.svelte";
+  import BookingViews from "#lib/booking/BookingViews.svelte";
   import { addDays, today } from "#lib/dates.ts";
 
 
@@ -109,13 +110,14 @@
 </script>
 
 <div class="page wide">
-  <h1>Tariff chart</h1>
+  <h1>Booking calendar</h1>
   <p class="page-intro">
     Choose a free night to start a booking, or a booking to open it. Use the arrow keys to move
-    around the chart and Enter to choose.
+    around the calendar and Enter to choose.
   </p>
 
   <div class="row toolbar">
+    <BookingViews current="calendar" />
     <Button onclick={() => setFrom(addDays(from, -7))}>← Week</Button>
     <Button onclick={() => setFrom(defaultFrom)}>Today</Button>
     <Button onclick={() => setFrom(addDays(from, 7))}>Week →</Button>

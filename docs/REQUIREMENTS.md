@@ -13,7 +13,7 @@ Offline booking app for a small family-run hotel: rooms, function suites, events
 |---|---|
 | Property setup | Configurable floors, rooms, room types, function suites (capacity, layouts). |
 | Floor plan | Built-in **grid editor** per floor: drag and resize room/suite boxes. A live view colours each one by status for a chosen date (free / booked / arriving / departing / dirty / out of service). |
-| Room bookings | Tariff chart (rooms × dates grid), create/edit/cancel, check-in/out, multi-room bookings, **no double-booking**. |
+| Room bookings | Booking calendar (rooms × dates grid; formerly "tariff chart"), create/edit/cancel, check-in/out, multi-room bookings, **no double-booking**. |
 | Rates | Per room type per night; seasonal and weekend date-range rates; board basis (Room only / B&B / DBB per guest); manual price override per booking. |
 | Function suites | Hourly / half-day / day hire, layout (theatre / boardroom / banquet), attendee count, setup and teardown buffers. |
 | Events | Weddings and dinners: links suite bookings, catering numbers and a block of rooms to one event; packages. |

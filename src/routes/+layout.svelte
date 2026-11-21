@@ -101,18 +101,20 @@
 
   function isCurrent(href: string): boolean {
     const path = page.url.pathname;
-    return href === "/" ? path === "/" : path === href || path.startsWith(`${href}/`);
+    const under = (h: string) => path === h || path.startsWith(`${h}/`);
+    if (href === "/") return path === "/";
+    // Bookings covers both its views: the calendar (/chart) and the list (/bookings).
+    if (href === "/chart") return under("/chart") || under("/bookings");
+    return under(href);
   }
 
   const main = [
     { href: "/", label: "Dashboard" },
-    { href: "/chart", label: "Tariff chart" },
-    { href: "/bookings", label: "Bookings" },
+    { href: "/chart", label: "Bookings" },
     { href: "/suites", label: "Function suites" },
     { href: "/events", label: "Events" },
     { href: "/floor-plan", label: "Floor plan" },
     { href: "/guests", label: "Guests" },
-    { href: "/reports", label: "Reports" },
   ];
   const hotel = [
     { href: "/setup/property", label: "Hotel details" },
@@ -159,6 +161,13 @@
         </li>
       {/each}
     </ul>
+    {#if session.can("view_reports")}
+      <ul class="admin">
+        <li>
+          <a href="/reports" aria-current={isCurrent("/reports") ? "page" : undefined}>Reports</a>
+        </li>
+      </ul>
+    {/if}
     {#if session.can("manage_setup")}
     <Collapsible bind:open={hotelOpen} class="group">
       <CollapsibleTrigger class="group-trigger">
@@ -255,6 +264,19 @@
     margin-top: calc(var(--ui-spacing) * 5);
     padding-top: calc(var(--ui-spacing) * 3);
     border-top: 1px solid var(--ui-border);
+  }
+
+  /* Admin-only items (Reports, then My hotel) sit together below one divider. */
+  .admin {
+    margin-top: calc(var(--ui-spacing) * 5);
+    padding-top: calc(var(--ui-spacing) * 3);
+    border-top: 1px solid var(--ui-border);
+  }
+
+  nav .admin + :global(.group) {
+    margin-top: calc(var(--ui-spacing) * 1);
+    padding-top: 0;
+    border-top: 0;
   }
 
   nav :global(.group-trigger) {

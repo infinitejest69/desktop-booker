@@ -59,7 +59,7 @@
   {#if detail}
     <Breadcrumbs
       items={[
-        { label: "Bookings", href: "/bookings" },
+        { label: "Bookings", href: "/chart" },
         { label: detail.booking.reference },
       ]}
     />

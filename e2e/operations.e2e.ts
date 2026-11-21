@@ -6,6 +6,7 @@ const nav = (page: import("@playwright/test").Page, name: string) =>
 test("checking a guest out leaves the room dirty until housekeeping marks it", async ({ demoHotel: page }) => {
   // Tom Price is in G03; check him in and out from his booking.
   await nav(page, "Bookings");
+  await page.getByRole("button", { name: "List", exact: true }).click();
   await page.getByRole("row", { name: /Tom Price/ }).getByRole("link").first().click();
   await page.getByRole("button", { name: "Check in" }).click();
   await page.getByRole("button", { name: "Check out" }).click();

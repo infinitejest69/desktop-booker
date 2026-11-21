@@ -2,8 +2,8 @@ import { expect, openSetup, test } from "./fixtures";
 
 test.describe("bookings", () => {
   test.beforeEach(async ({ demoHotel: page }) => {
-    await page.getByRole("link", { name: "Tariff chart", exact: true }).click();
-    await expect(page.getByRole("grid", { name: "Tariff chart" })).toBeVisible();
+    await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Bookings", exact: true }).click();
+    await expect(page.getByRole("grid", { name: "Booking calendar" })).toBeVisible();
   });
 
   test("the chart shows existing bookings", async ({ page }) => {
@@ -22,7 +22,7 @@ test.describe("bookings", () => {
     await page.getByRole("button", { name: "Make booking" }).click();
 
     // Back on the chart, with the new booking on it and a toast to open it.
-    await expect(page.getByRole("grid", { name: "Tariff chart" })).toBeVisible();
+    await expect(page.getByRole("grid", { name: "Booking calendar" })).toBeVisible();
     await expect(page.getByRole("gridcell", { name: /^Room G01, .*David Lewis/ }).first()).toBeVisible();
     await page.getByRole("button", { name: "Open booking" }).click();
 
@@ -72,7 +72,7 @@ test.describe("bookings", () => {
 
 test.describe("navigation", () => {
   test("the booking panel closes with Escape and Back, and opens as a full page", async ({ demoHotel: page }) => {
-    await page.getByRole("link", { name: "Tariff chart", exact: true }).click();
+    await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Bookings", exact: true }).click();
     await page.getByRole("gridcell", { name: /^Room G02, .*Margaret Hughes/ }).first().click();
     const panel = page.getByRole("dialog");
     await expect(panel).toContainText("Margaret Hughes");
@@ -83,7 +83,7 @@ test.describe("navigation", () => {
     await page.getByRole("gridcell", { name: /^Room G02, .*Margaret Hughes/ }).first().click();
     await page.getByRole("button", { name: "Back" }).click();
     await expect(panel).toBeHidden();
-    await expect(page.getByRole("grid", { name: "Tariff chart" })).toBeVisible();
+    await expect(page.getByRole("grid", { name: "Booking calendar" })).toBeVisible();
 
     await page.getByRole("gridcell", { name: /^Room G02, .*Margaret Hughes/ }).first().click();
     await panel.getByRole("link", { name: "Open full page" }).click();
@@ -95,7 +95,7 @@ test.describe("navigation", () => {
   });
 
   test("the chart remembers its week when you come back", async ({ demoHotel: page }) => {
-    await page.getByRole("link", { name: "Tariff chart", exact: true }).click();
+    await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Bookings", exact: true }).click();
     const header = page.getByRole("columnheader").first();
     const before = await header.innerText();
     await page.getByRole("button", { name: "Week →" }).click();
@@ -159,13 +159,30 @@ test.describe("dashboard", () => {
     await expect(page.getByText("Board: Bed & breakfast")).toBeVisible();
 
     await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Bookings", exact: true }).click();
+    await page.getByRole("button", { name: "List", exact: true }).click();
     await expect(page.getByRole("row", { name: /Tom Price/ })).toContainText("Room only");
   });
 
   test("the two-week chart opens bookings in the chart's side panel", async ({ demoHotel: page }) => {
     await page.getByRole("grid", { name: "Coming weeks" }).getByRole("gridcell", { name: /Margaret Hughes/ }).first().click();
     await expect(page.getByRole("dialog")).toContainText("Margaret Hughes");
-    await expect(page.getByRole("heading", { level: 1, name: "Tariff chart" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Booking calendar" })).toBeVisible();
+  });
+
+  test("Bookings switches between the calendar and the list", async ({ demoHotel: page }) => {
+    const bookingsLink = page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Bookings", exact: true });
+    await bookingsLink.click();
+    await expect(page.getByRole("heading", { level: 1, name: "Booking calendar" })).toBeVisible();
+    await expect(bookingsLink).toHaveAttribute("aria-current", "page");
+    await expect(page.getByRole("button", { name: "Calendar", exact: true })).toHaveAttribute("aria-pressed", "true");
+
+    await page.getByRole("button", { name: "List", exact: true }).click();
+    await expect(page.getByRole("heading", { level: 1, name: "Bookings" })).toBeVisible();
+    await expect(page.getByRole("row", { name: /Margaret Hughes/ }).first()).toBeVisible();
+    await expect(bookingsLink).toHaveAttribute("aria-current", "page");
+
+    await page.getByRole("button", { name: "Calendar", exact: true }).click();
+    await expect(page.getByRole("grid", { name: "Booking calendar" })).toBeVisible();
   });
 
   test("My Hotel groups the setup pages", async ({ demoHotel: page }) => {

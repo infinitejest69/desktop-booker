@@ -13,7 +13,8 @@
   import { useSession } from "#lib/session/session.svelte.ts";
 
   const session = useSession();
-  const canSeeRevenue = $derived(session.can("view_audit"));
+  // Reports are admin only; the Rust commands refuse anyone else too.
+  const allowed = $derived(session.can("view_reports"));
 
   /** "2026-06" → that month's first day up to the next month's first day. */
   function monthRange(month: string): DateRange {
@@ -39,20 +40,19 @@
 
   $effect(() => {
     const m = month;
+    if (!allowed) return;
     api
       .occupancyReport(monthRange(m))
       .then((d) => (days = d))
       .catch((error) => toast.error("Couldn't load occupancy", { description: errorMessage(error) }));
-    if (canSeeRevenue) {
-      api
-        .roomKpis(monthRange(m))
-        .then((k) => (kpis = k))
-        .catch(() => (kpis = null));
-      api
-        .revenueReport(yearRange(m))
-        .then((r) => (revenue = r))
-        .catch((error) => toast.error("Couldn't load revenue", { description: errorMessage(error) }));
-    }
+    api
+      .roomKpis(monthRange(m))
+      .then((k) => (kpis = k))
+      .catch(() => (kpis = null));
+    api
+      .revenueReport(yearRange(m))
+      .then((r) => (revenue = r))
+      .catch((error) => toast.error("Couldn't load revenue", { description: errorMessage(error) }));
   });
 
   async function saveCsv(report: "occupancy" | "revenue") {
@@ -81,6 +81,9 @@
 
 <div class="page wide">
   <h1>Reports</h1>
+  {#if !allowed}
+    <p class="muted">Reports are for admins. Ask an admin to sign in.</p>
+  {:else}
   <div class="row toolbar">
     <Field>
       <FieldLabel>Month</FieldLabel>
@@ -97,7 +100,7 @@
       </div>
     </div>
     <p class="summary"><strong>{totalPct}</strong> full: {occupied} of {available} room-nights sold.</p>
-    {#if canSeeRevenue && kpis}
+    {#if kpis}
       <p class="kpis" aria-label="Room rates">
         <span>Average rate per night sold (ADR) <strong>{formatMoney(kpis.adr)}</strong></span>
         <span>Revenue per available room (RevPAR) <strong>{formatMoney(kpis.revpar)}</strong></span>
@@ -117,7 +120,6 @@
     </div>
   </section>
 
-  {#if canSeeRevenue}
     <section class="panel stack revenue" aria-labelledby="revenue-heading">
       <div class="head">
         <h2 id="revenue-heading">Revenue, {month.slice(0, 4)}</h2>

@@ -3,4 +3,4 @@
 /**
  * Something a signed-in person might try to do.
  */
-export type Permission = "view_hotel" | "make_bookings" | "cancel_bookings" | "override_prices" | "manage_setup" | "manage_users" | "view_audit";
+export type Permission = "view_hotel" | "make_bookings" | "cancel_bookings" | "override_prices" | "manage_setup" | "manage_users" | "view_audit" | "view_reports";

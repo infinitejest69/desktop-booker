@@ -29,7 +29,7 @@
     days = $bindable(),
     fit = false,
     highlight = [],
-    label = "Tariff chart",
+    label = "Booking calendar",
     onBooking,
     onFree,
   }: Props = $props();

@@ -324,7 +324,7 @@
     <section aria-labelledby="chart-heading" class="chart-section">
       <div class="section-head">
         <h2 id="chart-heading">Coming weeks</h2>
-        <a href="/chart" class="link-button">Full tariff chart</a>
+        <a href="/chart" class="link-button">Full booking calendar</a>
       </div>
       <TariffChart
         {rooms}

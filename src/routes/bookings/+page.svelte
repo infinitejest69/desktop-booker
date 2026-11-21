@@ -9,6 +9,7 @@
   import { boardsSummary } from "#lib/booking/board.ts";
   import { statusLabel } from "#lib/booking/status.ts";
   import { daysBetween, formatDay } from "#lib/dates.ts";
+  import BookingViews from "#lib/booking/BookingViews.svelte";
 
   let query = $state("");
   let results = $state<BookingListItem[]>([]);
@@ -30,6 +31,7 @@
   <h1>Bookings</h1>
   <p class="page-intro">Search by reference, guest name or email. With no search, upcoming and current stays are shown.</p>
   <div class="row" style="margin-bottom: 1rem">
+    <BookingViews current="list" />
     <Field>
       <FieldLabel>Search</FieldLabel>
       <Input type="search" bind:value={query} placeholder="2026-0012, Hughes, jo@example.com" />

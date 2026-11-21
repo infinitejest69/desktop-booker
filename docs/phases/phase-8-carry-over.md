@@ -11,6 +11,10 @@ Items move here from their phase (and are marked *moved to Phase 8* there), so e
 - [x] Rooms slept in last night (still in house, or checked out) are dirty each morning until marked clean that day
 - [x] Dashboard: compact floor plans showing availability and dirty rooms at a glance, linking to the floor plan
 
+### Bookings in one place (added 2026-11-21)
+- [x] Rename the tariff chart to *Booking calendar*; one *Bookings* menu item with two views, Calendar and List
+- [x] Reports admin only, in the side menu just above *My hotel*
+
 ### From Phase 4 (suites & events)
 - [x] Floor plan: show suite use at a chosen time
 - [x] Packages: decided (Andy, 2026-11-21): leave as it is; per-head suite pricing plus the room block's group rate cover packages for now
@@ -31,6 +35,10 @@ Items move here from their phase (and are marked *moved to Phase 8* there), so e
 - [ ] macOS .dmg checked on a Mac
 
 ## Notes / decisions
+**Reports admin only (2026-11-21):** Andy asked for Reports to be admin only, next to My hotel. New `Permission::ViewReports` (admins only, like the other admin permissions); `occupancy_report` and the occupancy CSV now require it (revenue and ADR/RevPAR already needed `ViewAudit`). In the menu Reports sits on its own above My hotel, under one divider; staff opening `/reports` directly see a note instead. A report and dashboard *builder* followed: option 1 chosen, planned as Phase 9 ([ADR 0005](../decisions/0005-report-builder.md)).
+
+**Booking calendar (2026-11-21):** Andy asked to rename the tariff chart to "Booking calendar", combined with or tabbed beside Bookings. Done like the floor plan's Plan / Cards: the menu has one *Bookings* item (opening the calendar), and both pages carry a Calendar / List switch (`BookingViews.svelte`). The routes stay `/chart` and `/bookings` so existing links keep working; the menu item is highlighted on either, and on a booking's own pages. Code names (`TariffChart.svelte`, `api.chart`) are unchanged.
+
 **Email and saving files (2026-11-21):**
 - Andy: "for now just use Gmail" for testing; MxToolbox can be the *recipient* of a test (its deliverability address replies with a report) but it isn't a server to send through.
 - Core `email.rs`: settings (server, port, user name, from address and name), three templates (confirmation, changes, cancellation) with built-in defaults and `{placeholders}`, `fill`, `booking_values`, the log entry. Store: migration `0008` (`email_settings`, `email_templates`, `email_log`). Services: `booker_services::email` sends with `lettre` over rustls (STARTTLS on 587, TLS on 465) and keeps the password in the OS keychain with `keyring` 4 (service "DesktopBooker SMTP", the user name as account); the database never holds it. Gmail needs an app password; spaces in it are removed.
