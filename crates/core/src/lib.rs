@@ -7,6 +7,7 @@
 pub mod audit;
 pub mod booking;
 pub mod dates;
+pub mod events;
 pub mod grid;
 pub mod ids;
 pub mod money;
@@ -24,6 +25,10 @@ pub use booking::{
     Guest, Occupancy, RoomPricing, format_reference, free_rooms, validate_booking, validate_guest,
 };
 pub use dates::{DateRange, MAX_NIGHTS, iso_weekday};
+pub use events::{
+    CateringSitting, CateringTotals, Event, EventKind, RoomBlock, block_due_for_release,
+    catering_totals, validate_event,
+};
 pub use grid::{GridRect, MAX_GRID_CELLS};
 pub use ids::{
     AuditId, BoardOptionId, BookingId, BookingRoomId, EventId, FloorId, GuestId, RateRuleId,

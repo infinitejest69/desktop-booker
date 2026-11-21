@@ -93,6 +93,8 @@ pub enum ValidationError {
         other: String,
         at: String,
     },
+    #[error("The release date must be on or before the guests' arrival")]
+    ReleaseAfterArrival,
 }
 
 pub type ValidationResult = Result<(), ValidationError>;
