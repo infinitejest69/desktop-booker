@@ -154,7 +154,10 @@
   <DrawerContent class="booking-panel">
     {#if panel}
       <div class="panel-head">
-        <DrawerTitle>{panel.booking.reference} · {panel.guest.first_name} {panel.guest.last_name}</DrawerTitle>
+        <div>
+          <DrawerTitle>{panel.guest.first_name} {panel.guest.last_name}</DrawerTitle>
+          <p class="muted ref">Booking {panel.booking.reference}</p>
+        </div>
         <DrawerClose aria-label="Close">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12" /></svg>
         </DrawerClose>
@@ -214,6 +217,18 @@
     stroke: currentColor;
     stroke-width: 2;
     stroke-linecap: round;
+  }
+
+  :global(.booking-panel [data-slot="drawer-title"]) {
+    font-family: var(--font-sign);
+    font-weight: 400;
+    font-size: 1.5rem;
+    line-height: 1.2;
+    margin: 0;
+  }
+
+  .ref {
+    margin: 0;
   }
 
   .panel-links {

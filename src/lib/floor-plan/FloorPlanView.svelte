@@ -74,7 +74,7 @@
   .tile {
     position: absolute;
     box-sizing: border-box;
-    border: 2px solid var(--ui-background);
+    border: 2px solid var(--paper);
     border-radius: 6px;
     display: flex;
     flex-direction: column;
@@ -85,32 +85,35 @@
   }
 
   .tile[data-status="free"] {
-    background: light-dark(oklch(0.96 0.02 155), oklch(0.27 0.02 155));
-    border-color: light-dark(oklch(0.8 0.04 155), oklch(0.4 0.04 155));
+    background: var(--paper);
+    border-color: var(--rule);
   }
 
   .tile[data-kind="suite"][data-status="free"] {
-    background: light-dark(oklch(0.92 0.06 80), oklch(0.38 0.06 80));
+    background: var(--heather-wash);
     border-color: var(--ui-background);
   }
 
   .tile[data-status="in_house"] {
-    background: light-dark(oklch(0.84 0.07 245), oklch(0.4 0.07 245));
+    border-color: var(--st-in-house-edge);
+    background: var(--st-in-house-bg);
   }
 
   .tile[data-status="arriving"] {
-    background: light-dark(oklch(0.86 0.08 155), oklch(0.42 0.08 155));
+    border-color: var(--st-confirmed-edge);
+    background: var(--st-confirmed-bg);
   }
 
   .tile[data-status="departing"] {
-    background: light-dark(oklch(0.88 0.08 60), oklch(0.42 0.08 60));
+    border-color: var(--st-departing-edge);
+    background: var(--st-departing-bg);
   }
 
   .tile[data-status="turnover"] {
     background: linear-gradient(
       135deg,
-      light-dark(oklch(0.88 0.08 60), oklch(0.42 0.08 60)) 50%,
-      light-dark(oklch(0.86 0.08 155), oklch(0.42 0.08 155)) 50%
+      var(--st-departing-bg) 50%,
+      var(--st-confirmed-bg) 50%
     );
   }
 
@@ -120,7 +123,7 @@
   }
 
   .tile[data-status="out_of_service"] {
-    background: light-dark(oklch(0.88 0 0), oklch(0.32 0 0));
+    background: var(--st-done-bg);
     background-image: repeating-linear-gradient(
       45deg,
       transparent 0 6px,
@@ -129,7 +132,7 @@
   }
 
   .name {
-    font-weight: 600;
+    font-weight: 800;
   }
 
   .meta {

@@ -40,7 +40,10 @@
       ]}
     />
     <div class="heading">
-      <h1>{detail.booking.reference} · {detail.guest.first_name} {detail.guest.last_name}</h1>
+      <div>
+        <h1>{detail.guest.first_name} {detail.guest.last_name}</h1>
+        <p class="muted" style="margin: 0">Booking {detail.booking.reference}</p>
+      </div>
       <div class="row">
         <a class="link-button" href={chartHref}>Show on chart</a>
         <Button data-variant={editing ? undefined : "solid"} onclick={() => (editing = !editing)}>

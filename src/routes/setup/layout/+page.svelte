@@ -331,7 +331,7 @@
               <Textarea bind:value={draft.notes} rows={2} />
             </Field>
             <p class="muted">
-              Position {draft.rect.x + 1}, {draft.rect.y + 1} · size {draft.rect.w} × {draft.rect.h}
+              Column {draft.rect.x + 1}, row {draft.rect.y + 1}; {draft.rect.w} × {draft.rect.h} cells
             </p>
             <div class="row">
               <Button type="submit" data-variant="solid">Save</Button>
@@ -394,9 +394,9 @@
     align-items: center;
     justify-content: center;
     gap: 2px;
-    border: 1.5px solid light-dark(oklch(0.55 0.05 165), oklch(0.62 0.05 165));
+    border: 1.5px solid var(--edge);
     border-radius: 4px;
-    background: light-dark(oklch(0.95 0.03 165), oklch(0.27 0.03 165));
+    background: var(--paper);
     color: inherit;
     font: inherit;
     cursor: grab;
@@ -404,8 +404,8 @@
   }
 
   .canvas-scroll :global(.space[data-kind="suite"] .space-move) {
-    border-color: light-dark(oklch(0.55 0.08 60), oklch(0.68 0.08 60));
-    background: light-dark(oklch(0.95 0.04 75), oklch(0.29 0.04 75));
+    border-color: var(--heather);
+    background: var(--heather-wash);
   }
 
   .canvas-scroll :global(.space[data-out-of-service] .space-move) {

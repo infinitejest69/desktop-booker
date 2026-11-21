@@ -39,7 +39,7 @@ export async function rectOf(page: Page, name: string): Promise<Rect> {
 /** Opens a page under the collapsible "My Hotel" menu. */
 export async function openSetup(page: Page, name: string): Promise<void> {
   const link = page.getByRole("link", { name, exact: true });
-  if (!(await link.isVisible())) await page.getByRole("button", { name: "My Hotel" }).click();
+  if (!(await link.isVisible())) await page.getByRole("button", { name: "My hotel" }).click();
   await link.click();
 }
 

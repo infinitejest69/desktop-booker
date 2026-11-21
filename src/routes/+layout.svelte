@@ -1,9 +1,12 @@
 <script lang="ts">
+  import "@fontsource-variable/atkinson-hyperlegible-next";
+  import "@fontsource/young-serif";
   import "@ui-sdk/core/web.css";
   import "../app.css";
   import { afterNavigate } from "$app/navigation";
   import { page } from "$app/state";
   import { onMount } from "svelte";
+  import { api } from "#lib/api.ts";
   import { Button } from "@ui-sdk/svelte/button";
   import {
     Collapsible,
@@ -89,6 +92,16 @@
   ];
 
   let hotelOpen = $state(false);
+  let hotelName = $state("");
+
+  // Refresh the sign after any navigation, so a renamed hotel shows straight away.
+  $effect(() => {
+    void page.url.pathname;
+    api
+      .getSettings()
+      .then((s) => (hotelName = s.hotel_name))
+      .catch(() => {});
+  });
   $effect(() => {
     if (page.url.pathname.startsWith("/setup/")) hotelOpen = true;
   });
@@ -96,7 +109,7 @@
 
 <div class="shell">
   <nav aria-label="Main">
-    <p class="brand">DesktopBooker</p>
+    <a class="sign" href="/">{hotelName || "Your hotel"}</a>
     <ul>
       {#each main as item (item.href)}
         <li>
@@ -106,7 +119,7 @@
     </ul>
     <Collapsible bind:open={hotelOpen} class="group">
       <CollapsibleTrigger class="group-trigger">
-        My Hotel
+        My hotel
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
       </CollapsibleTrigger>
       <CollapsiblePanel>
@@ -149,10 +162,21 @@
     padding: calc(var(--ui-spacing) * 5) calc(var(--ui-spacing) * 3);
   }
 
-  .brand {
-    font-weight: 700;
-    font-size: 1rem;
-    margin: 0 calc(var(--ui-spacing) * 3) calc(var(--ui-spacing) * 5);
+  .sign {
+    display: block;
+    margin: 0 0 calc(var(--ui-spacing) * 6);
+    padding: calc(var(--ui-spacing) * 1) calc(var(--ui-spacing) * 3);
+    font-family: var(--font-sign);
+    font-size: 1.3rem;
+    line-height: 1.2;
+    color: var(--ink);
+    text-decoration: none;
+    overflow-wrap: anywhere;
+  }
+
+  .sign:hover {
+    background: transparent;
+    color: var(--heather);
   }
 
   ul {
@@ -193,10 +217,8 @@
     background: transparent;
     color: var(--ui-muted-foreground);
     font: inherit;
-    font-weight: 600;
-    font-size: 0.8rem;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
+    font-weight: 700;
+    font-size: 0.9375rem;
     cursor: pointer;
   }
 
@@ -236,9 +258,9 @@
   }
 
   a[aria-current="page"] {
-    background: var(--ui-primary);
-    color: var(--ui-primary-foreground);
-    font-weight: 600;
+    background: var(--heather);
+    color: var(--on-heather);
+    font-weight: 700;
   }
 
   .content {
@@ -254,8 +276,8 @@
     display: flex;
     gap: calc(var(--ui-spacing) * 2);
     padding: calc(var(--ui-spacing) * 2) calc(var(--ui-spacing) * 8);
-    background: var(--ui-background);
-    border-bottom: 1px solid var(--ui-border);
+    background: var(--ground);
+    border-bottom: 1px solid var(--rule);
   }
 
   .topbar svg {

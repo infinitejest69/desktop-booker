@@ -38,8 +38,8 @@ test.describe("bookings", () => {
     const today = new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
     await page.getByRole("gridcell", { name: `Room G01, ${today}: free` }).click();
     await page.getByRole("combobox", { name: "Room" }).click();
-    await expect(page.getByRole("option", { name: /^G02 .*\(taken\)/ })).toHaveAttribute("aria-disabled", "true");
-    await expect(page.getByRole("option", { name: /^G01 / })).not.toHaveAttribute("aria-disabled", "true");
+    await expect(page.getByRole("option", { name: /^G02, .*\(taken\)/ })).toHaveAttribute("aria-disabled", "true");
+    await expect(page.getByRole("option", { name: /^G01, / })).not.toHaveAttribute("aria-disabled", "true");
   });
 
   test("cancelling asks first and frees the room", async ({ page }) => {
@@ -135,7 +135,7 @@ test("floor plan shows today's arrivals and in-house rooms", async ({ demoHotel:
 test.describe("dashboard", () => {
   test("shows today's arrivals and checks a guest in", async ({ demoHotel: page }) => {
     const glance = page.getByRole("region", { name: "Today at a glance" });
-    await expect(glance).toContainText("1Arriving");
+    await expect(glance).toContainText("1 arriving");
     const arrivals = page.getByRole("region", { name: /Arrivals/ });
     await expect(arrivals).toContainText("Margaret Hughes");
     await arrivals.getByRole("button", { name: "Check in" }).click();
@@ -152,7 +152,7 @@ test.describe("dashboard", () => {
 
   test("My Hotel groups the setup pages", async ({ demoHotel: page }) => {
     await expect(page.getByRole("link", { name: "Floors", exact: true })).toBeHidden();
-    await page.getByRole("button", { name: "My Hotel" }).click();
+    await page.getByRole("button", { name: "My hotel" }).click();
     await page.getByRole("link", { name: "Floors", exact: true }).click();
     await expect(page.getByRole("heading", { level: 1, name: "Floors" })).toBeVisible();
     await expect(page.getByRole("link", { name: "Floors", exact: true })).toHaveAttribute("aria-current", "page");

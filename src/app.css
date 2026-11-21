@@ -1,44 +1,121 @@
 @layer ui-sdk;
 
+/*
+ * DesktopBooker visual system — see docs/decisions/0003-visual-design.md.
+ * Slate ink on paper, heather for actions, and status colours from the same
+ * family (moss = arriving/confirmed, estuary = in house, brass = departing/
+ * provisional). Every pair is checked for WCAG contrast in both themes.
+ */
 :root {
-  --ui-radius: 6px;
-  --ui-font-size: 0.875rem;
-  --ui-primary: light-dark(oklch(0.42 0.08 165), oklch(0.8 0.1 165));
-  --ui-primary-foreground: light-dark(oklch(0.99 0 0), oklch(0.18 0.02 165));
-  --ui-ring-border: light-dark(oklch(0.42 0.08 165), oklch(0.8 0.1 165));
+  /* Palette */
+  --ink: light-dark(#27323c, #e6ebee);
+  --ink-muted: light-dark(#56636e, #a3afb8);
+  --paper: light-dark(#ffffff, #1e252c);
+  --ground: light-dark(#e9edef, #161b20);
+  --rule: light-dark(#d3dade, #34404a);
+  --edge: light-dark(#7d8a94, #6e7d89);
+  --heather: light-dark(#5e3f7a, #b99bd8);
+  --on-heather: light-dark(#ffffff, #1c1426);
+  --heather-wash: light-dark(#efe8f5, #2c2338);
 
-  --app-sidebar: light-dark(oklch(0.97 0.006 165), oklch(0.19 0.01 165));
+  --moss: light-dark(#4f7144, #8db07e);
+  --moss-tint: light-dark(#dce8d5, #2b3c27);
+  --estuary: light-dark(#2f6488, #7fb0d6);
+  --estuary-tint: light-dark(#d5e3ee, #21364a);
+  --brass: light-dark(#9a6e1e, #d4a852);
+  --brass-tint: light-dark(#f0e2c2, #3c311f);
+  --fob: light-dark(#d9b66e, #c9a45c);
+  --on-fob: light-dark(#27323c, #1c1426);
+  --spent: light-dark(#e2e6e9, #2a323a);
+
+  /* Status roles, used by the chart, floor plan, badges and dashboard. */
+  --st-confirmed-bg: var(--moss-tint);
+  --st-confirmed-edge: var(--moss);
+  --st-provisional-bg: var(--brass-tint);
+  --st-provisional-edge: var(--brass);
+  --st-in-house-bg: var(--estuary-tint);
+  --st-in-house-edge: var(--estuary);
+  --st-departing-bg: var(--brass-tint);
+  --st-departing-edge: var(--brass);
+  --st-done-bg: var(--spent);
+  --st-done-edge: var(--edge);
+
+  /* Type */
+  --font-text: "Atkinson Hyperlegible Next Variable", "Atkinson Hyperlegible", system-ui, sans-serif;
+  --font-sign: "Young Serif", Georgia, "Times New Roman", serif;
+
+  /* ui-sdk tokens, mapped onto the palette */
+  --ui-background: var(--paper);
+  --ui-foreground: var(--ink);
+  --ui-muted: light-dark(#f1f4f5, #262e36);
+  --ui-muted-foreground: var(--ink-muted);
+  --ui-border: var(--rule);
+  --ui-input: var(--edge);
+  --ui-primary: var(--heather);
+  --ui-primary-foreground: var(--on-heather);
+  --ui-ring: var(--heather-wash);
+  --ui-ring-border: var(--heather);
+  --ui-radius: 6px;
+  --ui-font-sans: var(--font-text);
+  --ui-font-size: 0.9375rem;
+  --ui-line-height: 1.5;
+
+  --app-sidebar: var(--ground);
   --app-gap: calc(var(--ui-spacing) * 4);
+  --panel-radius: 10px;
 }
 
 html,
 body {
   margin: 0;
   height: 100%;
-  background: var(--ui-background);
-  color: var(--ui-foreground);
-  font-family: var(--ui-font-sans);
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--font-text);
   font-size: var(--ui-font-size);
   line-height: var(--ui-line-height);
+  font-variant-numeric: tabular-nums;
+}
+
+h1,
+h2,
+h3 {
+  color: var(--ink);
+  text-wrap: balance;
 }
 
 h1 {
-  font-size: 1.375rem;
+  font-family: var(--font-sign);
+  font-weight: 400;
+  font-size: 1.875rem;
+  line-height: 1.15;
+  letter-spacing: -0.005em;
   margin: 0 0 calc(var(--ui-spacing) * 1);
 }
 
 h2 {
-  font-size: 1rem;
+  font-size: 1.0625rem;
+  font-weight: 700;
   margin: 0;
 }
 
+h3 {
+  font-size: 0.9375rem;
+  font-weight: 700;
+}
+
+main {
+  background: var(--ground);
+}
+
 .page {
-  padding: calc(var(--ui-spacing) * 6) calc(var(--ui-spacing) * 8);
+  padding: calc(var(--ui-spacing) * 7) calc(var(--ui-spacing) * 9);
   max-width: 72rem;
 }
 
 .page-intro {
-  color: var(--ui-muted-foreground);
+  color: var(--ink-muted);
+  max-width: 68ch;
   margin: 0 0 calc(var(--ui-spacing) * 6);
 }
 
@@ -67,13 +144,19 @@ h2 {
 }
 
 .panel {
-  border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius);
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: var(--panel-radius);
   padding: calc(var(--ui-spacing) * 5);
 }
 
 .muted {
-  color: var(--ui-muted-foreground);
+  color: var(--ink-muted);
+}
+
+a {
+  color: var(--heather);
+  text-underline-offset: 0.18em;
 }
 
 table.list {
@@ -85,17 +168,18 @@ table.list th,
 table.list td {
   text-align: start;
   padding: calc(var(--ui-spacing) * 2) calc(var(--ui-spacing) * 3);
-  border-bottom: 1px solid var(--ui-border);
+  border-bottom: 1px solid var(--rule);
 }
 
 table.list th {
-  color: var(--ui-muted-foreground);
-  font-weight: 500;
+  color: var(--ink-muted);
+  font-weight: 600;
+  font-size: 0.875rem;
 }
 
 table.list tr[aria-current="true"] td {
-  background: var(--ui-muted);
-  font-weight: 600;
+  background: var(--heather-wash);
+  font-weight: 700;
 }
 
 table.list td.actions {
@@ -109,32 +193,61 @@ table.list td.actions {
   }
 }
 
+/* Booking status badge */
 .status {
   display: inline-block;
-  padding: 0.1rem 0.55rem;
+  padding: 0.05rem 0.6rem;
   border-radius: 999px;
-  font-size: 0.8rem;
-  font-weight: 600;
-  border: 1.5px solid var(--ui-border);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  border: 1.5px solid var(--st-done-edge);
+  background: var(--st-done-bg);
+  color: var(--ink);
 }
 
 .status[data-status="confirmed"] {
-  background: light-dark(oklch(0.92 0.06 155), oklch(0.36 0.06 155));
+  background: var(--st-confirmed-bg);
+  border-color: var(--st-confirmed-edge);
 }
 
 .status[data-status="provisional"] {
-  background: light-dark(oklch(0.94 0.07 85), oklch(0.4 0.07 85));
+  background: var(--st-provisional-bg);
+  border-color: var(--st-provisional-edge);
   border-style: dashed;
 }
 
 .status[data-status="checked_in"] {
-  background: light-dark(oklch(0.9 0.05 245), oklch(0.38 0.06 245));
+  background: var(--st-in-house-bg);
+  border-color: var(--st-in-house-edge);
 }
 
-.status[data-status="checked_out"],
-.status[data-status="cancelled"],
-.status[data-status="no_show"] {
-  background: var(--ui-muted);
+/* Room number as a brass key fob: the app's one decorative signature. */
+.fob {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+  min-width: 2.6em;
+  padding: 0.05em 0.55em 0.05em 0.4em;
+  border-radius: 0.35em 1em 1em 0.35em;
+  background: var(--fob);
+  color: var(--on-fob);
+  /* Room numbers must be unambiguous, so they use the text face's lining
+     figures (Young Serif's old-style 0 reads as "o"). */
+  font-family: var(--font-text);
+  font-weight: 700;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+.fob::before {
+  content: "";
+  width: 0.38em;
+  height: 0.38em;
+  border-radius: 50%;
+  background: var(--paper);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--on-fob) 35%, transparent);
+  flex: none;
 }
 
 a.link-button {
@@ -142,9 +255,10 @@ a.link-button {
   align-items: center;
   height: calc(var(--ui-spacing) * 8);
   padding: 0 calc(var(--ui-spacing) * 3);
-  border: 1px solid var(--ui-input);
+  border: 1px solid var(--edge);
   border-radius: var(--ui-radius);
-  color: inherit;
+  background: var(--paper);
+  color: var(--ink);
   text-decoration: none;
   font-size: var(--ui-font-size);
 }
@@ -154,6 +268,15 @@ a.link-button:hover {
 }
 
 a.link-button:focus-visible {
-  outline: 2px solid var(--ui-ring-border);
+  outline: 2px solid var(--heather);
   outline-offset: 1px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
 }

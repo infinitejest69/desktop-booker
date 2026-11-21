@@ -4,7 +4,7 @@ const CELL = 28;
 
 test("empty hotel offers the demo, which shows on the floor plan", async ({ demoHotel: page }) => {
   await page.getByRole("link", { name: "Floor plan", exact: true }).click();
-  await expect(page.getByText("4 bedrooms · 1 function suites · 1 floors")).toBeVisible();
+  await expect(page.getByText("4 bedrooms and 1 function suites on 1 floor")).toBeVisible();
   const rooms = page.getByRole("list", { name: "Ground floor rooms" });
   await expect(rooms.getByRole("listitem")).toHaveCount(5);
   await expect(rooms.getByRole("listitem").filter({ hasText: "G04" })).toContainText("Out of service");

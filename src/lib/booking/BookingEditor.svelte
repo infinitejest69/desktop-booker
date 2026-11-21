@@ -179,7 +179,7 @@
       const free = d.free.includes(r.id) && !takenHere.has(r.id);
       return {
         value: r.id,
-        label: `${r.name}${type ? ` · ${type.name}` : ""}${free || r.id === d.space_id ? "" : " (taken)"}`,
+        label: `${r.name}${type ? `, ${type.name}` : ""}${free || r.id === d.space_id ? "" : " (taken)"}`,
         disabled: !free && r.id !== d.space_id,
       };
     });
@@ -255,7 +255,7 @@
           {#each guestResults as g (g.id)}
             <li>
               <Button onclick={() => useGuest(g)}>
-                {g.first_name} {g.last_name}{g.email ? ` · ${g.email}` : ""}
+                {g.first_name} {g.last_name}{g.email ? ` (${g.email})` : ""}
               </Button>
             </li>
           {/each}

@@ -7,7 +7,7 @@ Built with **Rust + Tauri 2** and a **SvelteKit 3 (Svelte 5)** frontend. Runs on
 - Requirements & architecture: [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md)
 - Roadmap & progress: [docs/ROADMAP.md](docs/ROADMAP.md)
 
-> **Status:** Phases 0–1 done · Phase 2 (room bookings & rates) built, awaiting a hands-on check.
+> **Status:** Phases 0–2 done · Phase 3 (users, PIN login & audit log) in progress.
 
 ## Prerequisites
 

@@ -40,7 +40,7 @@
     checked_out: "checked out",
   };
 
-  const ROOM_COL_PX = 88;
+  const ROOM_COL_PX = 104;
   const MIN_DAY_PX = 50;
   let width = $state(0);
 
@@ -98,7 +98,7 @@
     {#each rooms as room, row (room.id)}
       <ChartRow class="chart-row" data-out-of-service={room.out_of_service ? "" : undefined}>
         <ChartRowHeader class="room">
-          <span class="room-name">{room.name}</span>
+          <span class="fob">{room.name}</span>
           <span class="room-type">{codes.get(room.room_type_id ?? "") ?? ""}</span>
         </ChartRowHeader>
         {#each dates as date, col (date)}
@@ -140,6 +140,7 @@
 
 <style>
   .scroll {
+    background: var(--paper);
     overflow: auto;
     max-height: calc(100vh - 15rem);
     border: 1px solid var(--ui-border);
@@ -147,7 +148,7 @@
   }
 
   .scroll :global(.chart) {
-    --room-col: 5.5rem;
+    --room-col: 6.5rem;
     --day-col: 3.125rem;
     --row-h: 2.4rem;
     display: grid;
@@ -189,12 +190,12 @@
   }
 
   .scroll :global(.day[data-weekend]) {
-    background: light-dark(oklch(0.96 0.01 165), oklch(0.22 0.01 165));
+    background: var(--ui-muted);
   }
 
   .scroll :global(.day[data-today]) {
-    color: var(--ui-primary);
-    box-shadow: inset 0 -3px 0 var(--ui-primary);
+    color: var(--heather);
+    box-shadow: inset 0 -3px 0 var(--heather);
   }
 
   .scroll :global(.room) {
@@ -207,7 +208,7 @@
     gap: 0.25rem;
     padding: 0 calc(var(--ui-spacing) * 2);
     height: var(--row-h);
-    background: var(--app-sidebar);
+    background: var(--paper);
     border-bottom: 1px solid var(--ui-border);
     border-inline-end: 1px solid var(--ui-border);
   }
@@ -230,7 +231,7 @@
   }
 
   .scroll :global(.cell[data-weekend]) {
-    background: light-dark(oklch(0.975 0.008 165), oklch(0.2 0.008 165));
+    background: color-mix(in oklab, var(--ui-muted) 70%, var(--paper));
   }
 
   .scroll :global(.cell:hover) {
@@ -296,31 +297,31 @@
 
   .scroll :global(.bar[data-status="confirmed"]),
   .legend [data-status="confirmed"]::before {
-    background: light-dark(oklch(0.86 0.07 155), oklch(0.4 0.07 155));
-    border-color: light-dark(oklch(0.6 0.09 155), oklch(0.6 0.09 155));
+    background: var(--st-confirmed-bg);
+    border-color: var(--st-confirmed-edge);
   }
 
   .scroll :global(.bar[data-status="provisional"]),
   .legend [data-status="provisional"]::before {
-    background: light-dark(oklch(0.93 0.07 85), oklch(0.42 0.07 85));
-    border-color: light-dark(oklch(0.65 0.1 75), oklch(0.65 0.1 75));
+    background: var(--st-provisional-bg);
+    border-color: var(--st-provisional-edge);
     border-style: dashed;
   }
 
   .scroll :global(.bar[data-status="checked_in"]),
   .legend [data-status="checked_in"]::before {
-    background: light-dark(oklch(0.86 0.06 245), oklch(0.4 0.07 245));
-    border-color: light-dark(oklch(0.55 0.1 245), oklch(0.62 0.1 245));
+    background: var(--st-in-house-bg);
+    border-color: var(--st-in-house-edge);
   }
 
   .scroll :global(.bar[data-status="checked_out"]),
   .legend [data-status="checked_out"]::before {
-    background: light-dark(oklch(0.9 0 0), oklch(0.34 0 0));
-    border-color: light-dark(oklch(0.65 0 0), oklch(0.55 0 0));
+    background: var(--st-done-bg);
+    border-color: var(--st-done-edge);
   }
 
   .scroll :global(.bar[data-highlight]) {
-    outline: 3px solid var(--ui-primary);
+    outline: 3px solid var(--heather);
     outline-offset: 1px;
   }
 

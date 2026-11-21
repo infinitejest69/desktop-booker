@@ -73,7 +73,7 @@
   {:else if floors.length === 0}
     <p class="muted">No floors yet. Add them under My Hotel → Floors, or load the demo hotel from the Dashboard.</p>
   {:else}
-    <p class="page-intro">{roomCount} bedrooms · {suiteCount} function suites · {floors.length} floors</p>
+    <p class="page-intro">{roomCount} bedrooms and {suiteCount} function suites on {floors.length} floor{floors.length === 1 ? "" : "s"}</p>
     <div class="row day-bar">
       <Field>
         <FieldLabel>Show the day</FieldLabel>
@@ -133,20 +133,20 @@
   }
 
   .legend [data-key="free"]::before {
-    background: light-dark(oklch(0.96 0.02 155), oklch(0.27 0.02 155));
-    outline: 1px solid light-dark(oklch(0.8 0.04 155), oklch(0.4 0.04 155));
+    background: var(--paper);
+    outline: 1px solid var(--rule);
   }
 
   .legend [data-key="arriving"]::before {
-    background: light-dark(oklch(0.86 0.08 155), oklch(0.42 0.08 155));
+    background: var(--st-confirmed-bg);
   }
 
   .legend [data-key="in_house"]::before {
-    background: light-dark(oklch(0.84 0.07 245), oklch(0.4 0.07 245));
+    background: var(--st-in-house-bg);
   }
 
   .legend [data-key="departing"]::before {
-    background: light-dark(oklch(0.88 0.08 60), oklch(0.42 0.08 60));
+    background: var(--st-departing-bg);
   }
 
   .day-bar {
@@ -165,10 +165,10 @@
   }
 
   .legend [data-key="suite"]::before {
-    background: light-dark(oklch(0.92 0.06 80), oklch(0.38 0.06 80));
+    background: var(--heather-wash);
   }
 
   .legend [data-key="oos"]::before {
-    background: light-dark(oklch(0.88 0 0), oklch(0.32 0 0));
+    background: var(--st-done-bg);
   }
 </style>

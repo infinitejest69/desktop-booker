@@ -17,7 +17,6 @@
   const chartFrom = addDays(day, -1);
 
   let loaded = $state(false);
-  let hotelName = $state("");
   let hasFloors = $state(false);
   let rooms = $state<Space[]>([]);
   let codes = $state(new Map<string, string>());
@@ -31,13 +30,11 @@
 
   async function load() {
     try {
-      const [settings, floors, types, spaces] = await Promise.all([
-        api.getSettings(),
+      const [floors, types, spaces] = await Promise.all([
         api.listFloors(),
         api.listRoomTypes(),
         api.listSpaces(),
       ]);
-      hotelName = settings.hotel_name;
       hasFloors = floors.length > 0;
       const level = new Map(floors.map((f) => [f.id, f.level]));
       codes = new Map(types.map((t) => [t.id, t.code]));
@@ -108,8 +105,7 @@
 <div class="page wide">
   <div class="heading">
     <div>
-      <h1>{hotelName || "Dashboard"}</h1>
-      <p class="page-intro">{formatDay(day, { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</p>
+      <h1>{formatDay(day, { weekday: "long", day: "numeric", month: "long" })}</h1>
     </div>
     {#if hasFloors}
       <Button data-variant="solid" onclick={() => goto("/bookings/new")}>New booking</Button>
@@ -130,12 +126,14 @@
       </div>
     </div>
   {:else}
-    <section class="tiles" aria-label="Today at a glance">
-      <div class="tile" data-tone="arriving"><span class="n">{summary.arrivals.length}</span><span>Arriving</span></div>
-      <div class="tile" data-tone="departing"><span class="n">{summary.departures.length}</span><span>Departing</span></div>
-      <div class="tile" data-tone="in-house"><span class="n">{summary.inHouse.length}</span><span>In house</span></div>
-      <div class="tile"><span class="n">{summary.freeTonight}</span><span>Free tonight</span></div>
-      <div class="tile"><span class="n">{summary.occupancy}%</span><span>Occupancy tonight</span></div>
+    <section class="glance" aria-label="Today at a glance">
+      <p>
+        <strong>{summary.arrivals.length}</strong> arriving,
+        <strong>{summary.departures.length}</strong> leaving,
+        <strong>{summary.inHouse.length}</strong> in house and
+        <strong>{summary.freeTonight}</strong> room{summary.freeTonight === 1 ? "" : "s"} free tonight
+        <span class="muted">({summary.occupancy}% full)</span>
+      </p>
     </section>
 
     <div class="today">
@@ -145,9 +143,10 @@
           <ul class="people">
             {#each summary.arrivals as a (a.booking_room_id)}
               <li>
-                <div>
+                <span class="fob">{roomName.get(a.space_id)}</span>
+                <div class="person">
                   <a href={`/bookings/${a.booking_id}`} class="who">{a.guest_name}</a>
-                  <span class="muted">Room {roomName.get(a.space_id)} · {guests(a)} · {nights(a)}{a.status === "provisional" ? " · provisional" : ""}</span>
+                  <span class="muted">{guests(a)}, {nights(a)}{a.status === "provisional" ? ", provisional" : ""}</span>
                 </div>
                 <Button data-variant="solid" disabled={busy === a.booking_room_id} onclick={() => setStatus(a, "checked_in")}>
                   Check in
@@ -166,9 +165,10 @@
           <ul class="people">
             {#each summary.departures as d (d.booking_room_id)}
               <li>
-                <div>
+                <span class="fob">{roomName.get(d.space_id)}</span>
+                <div class="person">
                   <a href={`/bookings/${d.booking_id}`} class="who">{d.guest_name}</a>
-                  <span class="muted">Room {roomName.get(d.space_id)} · {d.reference}</span>
+                  <span class="muted">Booking {d.reference}</span>
                 </div>
                 {#if d.status === "checked_in"}
                   <Button data-variant="solid" disabled={busy === d.booking_room_id} onclick={() => setStatus(d, "checked_out")}>
@@ -191,8 +191,9 @@
           <ul class="people compact">
             {#each summary.inHouse as h (h.booking_room_id)}
               <li>
+                <span class="fob">{roomName.get(h.space_id)}</span>
                 <a href={`/bookings/${h.booking_id}`} class="who">{h.guest_name}</a>
-                <span class="muted">Room {roomName.get(h.space_id)} · leaves {formatDay(h.stay.end, { weekday: "short", day: "numeric", month: "short" })}</span>
+                <span class="muted">leaves {formatDay(h.stay.end, { weekday: "long", day: "numeric", month: "short" })}</span>
               </li>
             {/each}
           </ul>
@@ -259,39 +260,19 @@
     gap: calc(var(--ui-spacing) * 4);
   }
 
-  .tiles {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
-    gap: calc(var(--ui-spacing) * 3);
-    margin-bottom: calc(var(--ui-spacing) * 5);
+  .glance {
+    margin: calc(var(--ui-spacing) * 1) 0 calc(var(--ui-spacing) * 6);
   }
 
-  .tile {
-    display: flex;
-    flex-direction: column;
-    gap: calc(var(--ui-spacing) * 1);
-    padding: calc(var(--ui-spacing) * 3) calc(var(--ui-spacing) * 4);
-    border: 1px solid var(--ui-border);
-    border-radius: var(--ui-radius);
-    border-inline-start: 4px solid var(--ui-border);
+  .glance p {
+    margin: 0;
+    font-size: 1.125rem;
+    max-width: 68ch;
   }
 
-  .tile .n {
-    font-size: 1.6rem;
-    font-weight: 700;
-    line-height: 1.1;
-  }
-
-  .tile[data-tone="arriving"] {
-    border-inline-start-color: light-dark(oklch(0.6 0.12 155), oklch(0.7 0.12 155));
-  }
-
-  .tile[data-tone="departing"] {
-    border-inline-start-color: light-dark(oklch(0.65 0.12 60), oklch(0.72 0.12 60));
-  }
-
-  .tile[data-tone="in-house"] {
-    border-inline-start-color: light-dark(oklch(0.55 0.12 245), oklch(0.7 0.1 245));
+  .glance strong {
+    font-weight: 800;
+    font-size: 1.25rem;
   }
 
   .today {
@@ -311,7 +292,7 @@
     min-width: 1.4rem;
     padding: 0 0.35rem;
     border-radius: 999px;
-    background: var(--ui-muted);
+    background: var(--ground);
     text-align: center;
     font-size: 0.8rem;
   }
@@ -327,7 +308,6 @@
   .people li {
     display: flex;
     align-items: center;
-    justify-content: space-between;
     gap: calc(var(--ui-spacing) * 3);
     padding: calc(var(--ui-spacing) * 2) 0;
     border-bottom: 1px solid var(--ui-border);
@@ -337,19 +317,19 @@
     border-bottom: 0;
   }
 
-  .people li > div {
+  .person {
     display: flex;
     flex-direction: column;
+    margin-inline-end: auto;
   }
 
   .people.compact li {
-    justify-content: flex-start;
     flex-wrap: wrap;
   }
 
   .who {
-    font-weight: 600;
-    color: inherit;
+    font-weight: 700;
+    color: var(--ink);
   }
 
   .chart-section {

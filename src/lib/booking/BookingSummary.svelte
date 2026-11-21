@@ -46,7 +46,8 @@
 <div class="summary" class:compact>
   <p class="status-line">
     <span class="status" data-status={detail.booking.status}>{statusLabel[detail.booking.status]}</span>
-    <span class="muted">{detail.guest.email || "No email"} · {detail.guest.phone || "No phone"}</span>
+    <span class="muted">{detail.guest.email || "No email"}</span>
+    <span class="muted">{detail.guest.phone || "No phone"}</span>
   </p>
 
   <div class="row actions" role="group" aria-label="Booking actions" bind:this={actionsEl}>
@@ -59,7 +60,7 @@
     {const pricing = $derived(detail.pricing[i])}
     <section class="room">
       <h3>
-        Room {roomNames.get(room.space_id) ?? "?"} ·
+        <span class="fob">{roomNames.get(room.space_id) ?? "?"}</span>
         {formatDay(room.stay.start, { weekday: "short", day: "numeric", month: "short" })} –
         {formatDay(room.stay.end, { weekday: "short", day: "numeric", month: "short" })}
         ({daysBetween(room.stay.start, room.stay.end)} night{daysBetween(room.stay.start, room.stay.end) === 1 ? "" : "s"})
@@ -125,6 +126,10 @@
   }
 
   .room h3 {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: calc(var(--ui-spacing) * 2);
     font-size: 0.95rem;
     margin: 0 0 calc(var(--ui-spacing) * 1);
   }

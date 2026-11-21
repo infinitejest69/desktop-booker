@@ -6,8 +6,8 @@ Status values: `todo` · `in-progress` · `done`. Tick tasks (`- [x]`) in each p
 |---|---|---|---|---|
 | 0 | [Setup & repo](phases/phase-0-setup.md) | Low | done | 12 / 12 |
 | 1 | [Property config & floor-plan editor](phases/phase-1-property-floorplan.md) | Medium | done | 14 / 14 |
-| 2 | [Room bookings & rates](phases/phase-2-bookings-rates.md) | High | in-progress (awaiting hands-on check) | 16 / 16 |
-| 3 | [Users, PIN login & audit log](phases/phase-3-users-audit.md) | Low–Med | todo | 0 / 9 |
+| 2 | [Room bookings & rates](phases/phase-2-bookings-rates.md) | High | done | 16 / 16 |
+| 3 | [Users, PIN login & audit log](phases/phase-3-users-audit.md) | Low–Med | in-progress | 0 / 9 |
 | 4 | [Function suites & events](phases/phase-4-suites-events.md) | High | todo | 0 / 12 |
 | 5 | [Invoicing & payments](phases/phase-5-invoicing.md) | Medium | todo | 0 / 11 |
 | 6 | [Housekeeping, CRM, email & reports](phases/phase-6-ops-crm-email-reports.md) | Medium | done | 14 / 14 |
