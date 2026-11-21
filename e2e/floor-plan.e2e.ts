@@ -12,7 +12,7 @@ test("empty hotel offers the demo, which shows on the floor plan", async ({ demo
 
 test.describe("layout editor", () => {
   test.beforeEach(async ({ demoHotel: page }) => {
-    await openSetup(page, "Layout editor");
+    await openSetup(page, "Floors and layout");
     await expect(page.getByRole("group", { name: "Ground floor layout" })).toBeVisible();
   });
 
@@ -58,8 +58,8 @@ test.describe("layout editor", () => {
     await expect.poll(() => rectOf(page, "G01")).toEqual({ x: 13, y: 0, w: 5, h: 4 });
   });
 
-  test("add bedroom places a new room in the first free spot", async ({ page }) => {
-    await page.getByRole("button", { name: "Add bedroom" }).click();
+  test("clicking a palette piece places it in the first free spot", async ({ page }) => {
+    await page.getByRole("button", { name: /^Bedroom 3 × 4/ }).click();
     await expect(page.getByText("Added G05")).toBeVisible();
     expect(await rectOf(page, "G05")).toEqual({ x: 12, y: 0, w: 3, h: 4 });
     await expect(page.locator("#details-heading")).toHaveText("G05");
@@ -67,9 +67,79 @@ test.describe("layout editor", () => {
 });
 
 test("setup pages load", async ({ demoHotel: page }) => {
-  for (const name of ["Floors", "Room types", "Hotel details"]) {
+  for (const name of ["Floors and layout", "Room types", "Hotel details"]) {
     await openSetup(page, name);
     await expect(page.getByRole("heading", { level: 1, name })).toBeVisible();
   }
   await expect(page.getByRole("textbox", { name: "Hotel name" })).toHaveValue("The Grange");
+});
+
+test.describe("floors and layout tools", () => {
+  test.beforeEach(async ({ demoHotel: page }) => {
+    await openSetup(page, "Floors and layout");
+    await expect(page.getByRole("group", { name: "Ground floor layout" })).toBeVisible();
+  });
+
+  const floorSize = (page: import("@playwright/test").Page) =>
+    page.evaluate(() => {
+      const f = (window as unknown as { __fakeDb: { floors: { grid_cols: number; grid_rows: number }[] } }).__fakeDb.floors[0];
+      return [f.grid_cols, f.grid_rows];
+    });
+
+  test("a 200 × 200 floor keeps both scrollbars on screen", async ({ page }) => {
+    await page.getByLabel("Width (cells)", { exact: true }).fill("200");
+    await page.getByLabel("Depth (cells)", { exact: true }).fill("200");
+    await page.getByRole("button", { name: "Save floor" }).click();
+    await expect.poll(() => floorSize(page)).toEqual([200, 200]);
+    const plan = page.getByRole("region", { name: "Ground floor plan" });
+    const fits = await plan.evaluate((el) => ({
+      scrollsAcross: el.scrollWidth > el.clientWidth,
+      scrollsDown: el.scrollHeight > el.clientHeight,
+      bottomOnScreen: el.getBoundingClientRect().bottom <= window.innerHeight,
+    }));
+    expect(fits).toEqual({ scrollsAcross: true, scrollsDown: true, bottomOnScreen: true });
+  });
+
+  test("dragging a piece from the palette drops it where you let go", async ({ page }) => {
+    const canvas = page.getByRole("group", { name: "Ground floor layout" });
+    await page.getByRole("button", { name: /^Function suite 6 × 4/ }).dragTo(canvas, {
+      targetPosition: { x: 18 * CELL, y: 3 * CELL },
+    });
+    await expect(page.getByText(/^Added Suite/)).toBeVisible();
+    const suite = await page.evaluate(() =>
+      (window as unknown as { __fakeDb: { spaces: { name: string; rect: object }[] } }).__fakeDb.spaces.find((s) => s.name === "Suite 1")!.rect,
+    );
+    expect(suite).toEqual({ x: 15, y: 1, w: 6, h: 4 });
+  });
+
+  test("add several bedrooms fills free spots in a row", async ({ page }) => {
+    await page.getByLabel("Bedrooms to add", { exact: true }).fill("3");
+    await page.getByRole("button", { name: "Add 3 bedrooms" }).click();
+    await expect(page.getByText("Added 3 bedrooms")).toBeVisible();
+    for (const name of ["G05", "G06", "G07"]) {
+      await expect(page.getByRole("button", { name: new RegExp(`^${name}\\b`) })).toBeVisible();
+    }
+  });
+
+  test("the grid edge resizes the floor by dragging or with the keyboard", async ({ page }) => {
+    const edge = page.getByRole("button", { name: /^Floor width: 24 cells/ });
+    const box = (await edge.boundingBox())!;
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width / 2 + CELL * 3, box.y + box.height / 2, { steps: 6 });
+    await expect(page.getByText("27 × 10")).toBeVisible();
+    await page.mouse.up();
+    await expect.poll(() => floorSize(page)).toEqual([27, 10]);
+
+    await page.getByRole("button", { name: /^Floor depth: 10 cells/ }).focus();
+    await page.keyboard.press("ArrowDown");
+    await expect.poll(() => floorSize(page)).toEqual([27, 11]);
+  });
+
+  test("the grid can't shrink past a room", async ({ page }) => {
+    await page.getByRole("button", { name: /^Floor depth/ }).focus();
+    for (let i = 0; i < 5; i++) await page.keyboard.press("ArrowUp");
+    // The Garden Suite reaches row 10, so the floor stays 10 deep.
+    await expect.poll(() => floorSize(page)).toEqual([24, 10]);
+  });
 });

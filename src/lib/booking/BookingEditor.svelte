@@ -18,6 +18,7 @@
   import NumberField from "../components/NumberField.svelte";
   import TextField from "../components/TextField.svelte";
   import { api, errorMessage, newId } from "../api";
+  import { useSession } from "../session/session.svelte";
   import { addDays, daysBetween, formatDay, today } from "../dates";
   import { formatMoney } from "../format";
   import type { BoardOption } from "../bindings/BoardOption";
@@ -38,6 +39,8 @@
   }
 
   let { detail = null, initialRoom = null, initialStart = null, onSaved }: Props = $props();
+  const session = useSession();
+  const canSetPrice = $derived(session.can("override_prices"));
 
   interface RoomDraft {
     id: string;
@@ -357,6 +360,7 @@
           </details>
         {/if}
         <div class="row">
+          {#if canSetPrice}
           <label data-slot="label" class="switch-row">
             Set the price by hand
             <Switch
@@ -369,6 +373,9 @@
           </label>
           {#if d.overrideOn}
             <MoneyField label="Price for this room's stay" bind:value={d.override} />
+          {/if}
+          {:else if d.overrideOn}
+            <p class="muted" style="margin: 0">Price set by an admin: {formatMoney(d.override)}</p>
           {/if}
           {#if drafts.length > 1}
             <Button data-variant="destructive" onclick={() => (drafts = drafts.filter((x) => x !== d))}>

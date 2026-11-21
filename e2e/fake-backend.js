@@ -22,7 +22,34 @@
     guests: [],
     bookings: [],
     counter: 0,
+    users: [],
+    audit: [],
   };
+  // ?fake=setup starts with no users; ?fake=locked starts signed out.
+  const mode = new URLSearchParams(location.search).get("fake");
+  const andy = { id: crypto.randomUUID(), name: "Andy", role: "admin", active: true };
+  const sam = { id: crypto.randomUUID(), name: "Sam", role: "staff", active: true };
+  const pins = new Map();
+  if (mode !== "setup") {
+    db.users = [andy, sam];
+    pins.set(andy.id, "1234");
+    pins.set(sam.id, "5678");
+  }
+  const attempts = {};
+  let current = mode === "setup" || mode === "locked" ? null : andy;
+  const log = (summary, entity = "booking") =>
+    db.audit.unshift({
+      id: crypto.randomUUID(),
+      at: new Date().toISOString(),
+      user_id: current?.id ?? null,
+      user_name: current?.name ?? "System",
+      entity,
+      entity_id: "",
+      action: "updated",
+      summary,
+      before: null,
+      after: null,
+    });
   const id = () => crypto.randomUUID();
   const err = (message) => {
     throw { kind: "validation", message };
@@ -189,6 +216,13 @@
     return true;
   }
 
+  const PUBLIC = new Set(["app_version", "session_status", "create_first_admin", "login", "logout"]);
+  const ADMIN_ONLY = new Set([
+    "save_settings", "save_floor", "delete_floor", "save_room_type", "delete_room_type",
+    "save_space", "delete_space", "save_rate_rule", "delete_rate_rule", "save_board_option",
+    "delete_board_option", "list_users", "save_user", "list_audit", "seed_demo_data",
+  ]);
+
   const guestName = (b) => {
     const g = db.guests.find((x) => x.id === b.booking.guest_id);
     return { g, name: `${g.first_name} ${g.last_name}`.trim() };
@@ -278,7 +312,11 @@
       if (!b) throw { kind: "not_found", message: "Booking not found" };
       return detailOf(b);
     },
-    save_booking: ({ booking, guest }) => saveBooking(booking, guest),
+    save_booking: ({ booking, guest }) => {
+      const saved = saveBooking(booking, guest);
+      log(`Made booking ${saved.booking.reference} for ${guest.first_name} ${guest.last_name}`.trim());
+      return saved;
+    },
     set_booking_status: ({ id, status }) => {
       const b = db.bookings.find((x) => x.booking.id === id);
       return saveBooking({ ...b.booking, status }, guestName(b).g);
@@ -301,11 +339,59 @@
           rooms: b.booking.rooms.map((r) => db.spaces.find((s) => s.id === r.space_id)?.name ?? "?"),
         })),
     seed_demo_data: () => seed(),
+
+    session_status: () => ({
+      needs_setup: db.users.length === 0,
+      user: current,
+      users: db.users.filter((u) => u.active),
+      hotel_name: db.settings.hotel_name,
+      idle_lock_minutes: db.settings.idle_lock_minutes,
+    }),
+    create_first_admin: ({ name, pin }) => {
+      const u = { id: crypto.randomUUID(), name, role: "admin", active: true };
+      db.users.push(u);
+      pins.set(u.id, pin);
+      current = u;
+      return u;
+    },
+    login: ({ userId, pin }) => {
+      const tries = (attempts[userId] ??= { failures: 0, until: 0 });
+      if (Date.now() < tries.until) {
+        throw { kind: "validation", message: "Too many wrong PINs.", retry_after: Math.ceil((tries.until - Date.now()) / 1000) };
+      }
+      if (pins.get(userId) !== pin) {
+        tries.failures += 1;
+        if (tries.failures >= 5) {
+          tries.failures = 0;
+          tries.until = Date.now() + 30_000;
+          throw { kind: "validation", message: "Too many wrong PINs.", retry_after: 30 };
+        }
+        err(`Wrong PIN. ${5 - tries.failures} tries left.`);
+      }
+      current = db.users.find((u) => u.id === userId);
+      return current;
+    },
+    logout: () => {
+      current = null;
+    },
+    list_users: () => db.users,
+    save_user: ({ user, pin }) => {
+      const existed = db.users.some((u) => u.id === user.id);
+      if (!existed && !pin) err("A PIN is 4 to 8 digits");
+      db.users = db.users.filter((u) => u.id !== user.id).concat(user);
+      if (pin) pins.set(user.id, pin);
+      log(existed ? `Changed details for ${user.name}` : `Added ${user.role === "admin" ? "admin" : "staff member"} ${user.name}`, "user");
+    },
+    list_audit: ({ userId, entity }) =>
+      db.audit.filter((e) => (!userId || e.user_id === userId) && (!entity || e.entity === entity)),
   };
 
   window.__fakeDb = db;
   window.__TAURI_INTERNALS__ = {
     invoke: async (cmd, args) => {
+      if (!PUBLIC.has(cmd) && !current) throw { kind: "locked", message: "Please sign in to continue." };
+      if (ADMIN_ONLY.has(cmd) && current?.role !== "admin")
+        throw { kind: "forbidden", message: "Only an admin can change the hotel's setup." };
       const h = handlers[cmd];
       if (!h) throw { kind: "internal", message: `no fake for ${cmd}` };
       return structuredClone(h(args || {}));

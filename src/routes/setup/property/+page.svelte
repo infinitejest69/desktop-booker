@@ -12,6 +12,7 @@
   } from "@ui-sdk/svelte/select";
   import { Textarea } from "@ui-sdk/svelte/textarea";
   import { toast } from "@ui-sdk/svelte/toast";
+  import NumberField from "#lib/components/NumberField.svelte";
   import TextField from "#lib/components/TextField.svelte";
   import { api, errorMessage } from "#lib/api.ts";
   import type { PropertySettings } from "#lib/bindings/PropertySettings.ts";
@@ -94,6 +95,13 @@
         />
         <TextField label="Check-out by" type="time" bind:value={settings.check_out_time} required />
       </div>
+      <NumberField
+        label="Lock the app after (minutes idle)"
+        bind:value={settings.idle_lock_minutes}
+        min={0}
+        max={240}
+        description="0 means never lock. Whoever is at the desk then signs in with their PIN."
+      />
       <div>
         <Button type="submit" data-variant="solid">Save details</Button>
       </div>

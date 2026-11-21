@@ -151,10 +151,10 @@ test.describe("dashboard", () => {
   });
 
   test("My Hotel groups the setup pages", async ({ demoHotel: page }) => {
-    await expect(page.getByRole("link", { name: "Floors", exact: true })).toBeHidden();
+    await expect(page.getByRole("link", { name: "Floors and layout", exact: true })).toBeHidden();
     await page.getByRole("button", { name: "My hotel" }).click();
-    await page.getByRole("link", { name: "Floors", exact: true }).click();
-    await expect(page.getByRole("heading", { level: 1, name: "Floors" })).toBeVisible();
-    await expect(page.getByRole("link", { name: "Floors", exact: true })).toHaveAttribute("aria-current", "page");
+    await page.getByRole("link", { name: "Floors and layout", exact: true }).click();
+    await expect(page.getByRole("heading", { level: 1, name: "Floors and layout" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Floors and layout", exact: true })).toHaveAttribute("aria-current", "page");
   });
 });

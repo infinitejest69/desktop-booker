@@ -926,6 +926,7 @@ name = "desktop-booker"
 version = "0.1.0"
 dependencies = [
  "booker-core",
+ "booker-services",
  "booker-store",
  "chrono",
  "serde",

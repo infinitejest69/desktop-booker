@@ -82,6 +82,22 @@ impl User {
     }
 }
 
+/// What the app needs to know before showing anything: whether to run first-time
+/// setup, show the lock screen, or carry on as the signed-in user.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
+pub struct SessionStatus {
+    /// No users exist yet: create the first admin.
+    pub needs_setup: bool,
+    /// The signed-in user, or `None` when locked.
+    pub user: Option<User>,
+    /// Active users to choose from on the lock screen.
+    pub users: Vec<User>,
+    pub hotel_name: String,
+    /// Lock after this many idle minutes (0 = never).
+    pub idle_lock_minutes: u16,
+}
+
 pub const PIN_MIN: usize = 4;
 pub const PIN_MAX: usize = 8;
 

@@ -127,7 +127,7 @@
   </div>
 
   {#if floors.length && rooms.length === 0}
-    <p class="muted">No bedrooms yet. Add some in the Layout editor.</p>
+    <p class="muted">No bedrooms yet. Add some under My hotel → Floors and layout.</p>
   {:else}
     <TariffChart
       {rooms}

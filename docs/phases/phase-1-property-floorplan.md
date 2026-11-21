@@ -38,3 +38,8 @@
 - **Browser tests use Playwright** (`pnpm test:e2e`, specs in `e2e/*.e2e.ts`). The Tauri backend doesn't exist in a plain browser, so `e2e/fake-backend.js` stands in for it. Locally this uses the system Chromium; CI installs Playwright's own.
 - Demo data has 3 floors, 40 rooms and 2 suites (the plan said 30 rooms).
 - **Closed (2026-11-21):** Andy has some changes in mind and will raise them in a later phase.
+- **Floors and layout, reworked (2026-11-21, from Andy's feedback):**
+  - The Floors page and the Layout editor are now **one page**, "Floors and layout": pick or add a floor; rename, set its level and grid size, or delete it in the side panel; lay out its rooms on the same screen.
+  - **Palette:** drag a Bedroom (3 × 4), Family room (4 × 4) or Function suite (6 × 4) onto the grid, where it lands centred on the drop point. Clicking a piece places it in the first free space. "Add N bedrooms" fills free spots in a row.
+  - **Grid resize handles** on the right edge, bottom edge and corner work like spreadsheet column handles: drag, or focus them and use the arrow keys. They snap to cells, never cut off a room, and are capped at 200.
+  - **Bug fixed:** on a big grid (e.g. 200 × 200) the horizontal scrollbar sat at the very bottom of a canvas thousands of pixels tall. The plan now measures where it starts and sizes itself to end at the bottom of the window, so both scrollbars are always on screen.

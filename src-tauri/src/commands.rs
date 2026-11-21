@@ -1,146 +1,365 @@
 //! Tauri commands: the functions the frontend can call with `invoke`.
 //!
-//! Keep these thin: take input, call the store, return the result. Rules
-//! live in `booker-core`, persistence in `booker-store`.
+//! Every command first asks the [`Session`] for permission. `session.require`
+//! returns the store "acting as" the signed-in user, so each change lands in
+//! the audit log under their name. The checks live here in Rust, not only in
+//! the UI, so hiding a button is never the only protection.
 //!
-//! Note: Tauri renames arguments to camelCase for JavaScript, so a Rust
-//! parameter `floor_id` is passed from the frontend as `{ floorId }`.
-//!
-//! `State<'_, SqliteStore>` is the store registered with `app.manage(...)` at
-//! startup. `'_` is an elided lifetime: the borrow lasts as long as the call.
+//! Tauri renames arguments to camelCase for JavaScript, so a Rust parameter
+//! `floor_id` is passed from the frontend as `{ floorId }`.
 
 use booker_core::{
-    BoardOption, BoardOptionId, Booking, BookingDetail, BookingId, BookingListItem, BookingStatus,
-    ChartEntry, DateRange, Floor, FloorId, Guest, PropertySettings, RateRule, RateRuleId, RoomType,
-    RoomTypeId, Space, SpaceId, StayQuote,
+    AuditEntry, BoardOption, BoardOptionId, Booking, BookingDetail, BookingId, BookingListItem,
+    BookingStatus, ChartEntry, DateRange, Floor, FloorId, Guest, Permission, PropertySettings,
+    RateRule, RateRuleId, Role, RoomType, RoomTypeId, SessionStatus, Space, SpaceId, StayQuote,
+    User, UserId, validate_pin,
 };
+use booker_services::pin::{hash_pin, verify_pin};
 use booker_store::{
-    BookingRepo, FloorRepo, GuestRepo, RateRepo, RoomTypeRepo, SettingsRepo, SpaceRepo, SqliteStore,
+    BookingRepo, FloorRepo, GuestRepo, RateRepo, RoomTypeRepo, SettingsRepo, SpaceRepo,
+    SqliteStore, StoreError,
 };
 use chrono::NaiveDate;
 use tauri::State;
 
-use crate::error::CmdResult;
+use crate::error::{CmdResult, CommandError};
+use crate::session::Session;
 
 type Store<'a> = State<'a, SqliteStore>;
+type Sess<'a> = State<'a, Session>;
 
 #[tauri::command]
 pub fn app_version() -> String {
     booker_core::version().to_string()
 }
 
-// ---- settings ----
+// ---- session & users ----
 
 #[tauri::command]
-pub async fn get_settings(store: Store<'_>) -> CmdResult<PropertySettings> {
-    Ok(store.get_settings().await?)
+pub async fn session_status(store: Store<'_>, session: Sess<'_>) -> CmdResult<SessionStatus> {
+    let users = store.list_users().await?;
+    let settings = store.get_settings().await?;
+    Ok(SessionStatus {
+        needs_setup: users.is_empty(),
+        user: session.current_user(),
+        users: users.into_iter().filter(|u| u.active).collect(),
+        hotel_name: settings.hotel_name,
+        idle_lock_minutes: settings.idle_lock_minutes,
+    })
+}
+
+/// Creates the very first admin. Refused once any user exists.
+#[tauri::command]
+pub async fn create_first_admin(
+    store: Store<'_>,
+    session: Sess<'_>,
+    name: String,
+    pin: String,
+) -> CmdResult<User> {
+    if !store.list_users().await?.is_empty() {
+        return Err(CommandError::forbidden(
+            "The first admin has already been set up.",
+        ));
+    }
+    validate_pin(&pin).map_err(StoreError::from)?;
+    let user = User {
+        id: UserId::new(),
+        name: name.trim().to_string(),
+        role: Role::Admin,
+        active: true,
+    };
+    let hash = hash_pin(&pin).map_err(CommandError::internal)?;
+    store.as_user(&user).save_user(&user, Some(&hash)).await?;
+    session.sign_in(user.clone());
+    Ok(user)
 }
 
 #[tauri::command]
-pub async fn save_settings(store: Store<'_>, settings: PropertySettings) -> CmdResult<()> {
-    Ok(store.save_settings(&settings).await?)
+pub async fn login(
+    store: Store<'_>,
+    session: Sess<'_>,
+    user_id: UserId,
+    pin: String,
+) -> CmdResult<User> {
+    session.check_not_locked_out(user_id)?;
+    let hash = store
+        .pin_hash(user_id)
+        .await?
+        .ok_or_else(|| CommandError::validation("That user can't sign in."))?;
+    if !verify_pin(&pin, &hash) {
+        return Err(session.failed_attempt(user_id));
+    }
+    let user = store
+        .list_users()
+        .await?
+        .into_iter()
+        .find(|u| u.id == user_id && u.active)
+        .ok_or_else(|| CommandError::validation("That user can't sign in."))?;
+    session.sign_in(user.clone());
+    Ok(user)
+}
+
+#[tauri::command]
+pub fn logout(session: Sess<'_>) {
+    session.sign_out();
+}
+
+#[tauri::command]
+pub async fn list_users(store: Store<'_>, session: Sess<'_>) -> CmdResult<Vec<User>> {
+    Ok(session
+        .require(&store, Permission::ManageUsers)?
+        .list_users()
+        .await?)
+}
+
+/// Adds or updates a user. `pin` is required for a new user and optional
+/// (keep the current one) when editing.
+#[tauri::command]
+pub async fn save_user(
+    store: Store<'_>,
+    session: Sess<'_>,
+    user: User,
+    pin: Option<String>,
+) -> CmdResult<()> {
+    let acting = session.require(&store, Permission::ManageUsers)?;
+    let hash = match pin.as_deref().filter(|p| !p.is_empty()) {
+        Some(p) => {
+            validate_pin(p).map_err(StoreError::from)?;
+            Some(hash_pin(p).map_err(CommandError::internal)?)
+        }
+        None => None,
+    };
+    acting.save_user(&user, hash.as_deref()).await?;
+    // Keep the session in step if admins edit themselves.
+    if session.current_user().is_some_and(|u| u.id == user.id) {
+        if user.active {
+            session.sign_in(user)
+        } else {
+            session.sign_out()
+        }
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn list_audit(
+    store: Store<'_>,
+    session: Sess<'_>,
+    user_id: Option<UserId>,
+    entity: Option<String>,
+    limit: Option<u32>,
+) -> CmdResult<Vec<AuditEntry>> {
+    let acting = session.require(&store, Permission::ViewAudit)?;
+    Ok(acting
+        .list_audit(user_id, entity.as_deref(), limit.unwrap_or(200))
+        .await?)
+}
+
+// ---- settings ----
+
+#[tauri::command]
+pub async fn get_settings(store: Store<'_>, session: Sess<'_>) -> CmdResult<PropertySettings> {
+    Ok(session
+        .require(&store, Permission::ViewHotel)?
+        .get_settings()
+        .await?)
+}
+
+#[tauri::command]
+pub async fn save_settings(
+    store: Store<'_>,
+    session: Sess<'_>,
+    settings: PropertySettings,
+) -> CmdResult<()> {
+    session
+        .require(&store, Permission::ManageSetup)?
+        .save_settings(&settings)
+        .await?;
+    session.set_idle_lock(settings.idle_lock_minutes);
+    Ok(())
 }
 
 // ---- floors ----
 
 #[tauri::command]
-pub async fn list_floors(store: Store<'_>) -> CmdResult<Vec<Floor>> {
-    Ok(store.list_floors().await?)
+pub async fn list_floors(store: Store<'_>, session: Sess<'_>) -> CmdResult<Vec<Floor>> {
+    Ok(session
+        .require(&store, Permission::ViewHotel)?
+        .list_floors()
+        .await?)
 }
 
 #[tauri::command]
-pub async fn save_floor(store: Store<'_>, floor: Floor) -> CmdResult<()> {
-    Ok(store.save_floor(&floor).await?)
+pub async fn save_floor(store: Store<'_>, session: Sess<'_>, floor: Floor) -> CmdResult<()> {
+    Ok(session
+        .require(&store, Permission::ManageSetup)?
+        .save_floor(&floor)
+        .await?)
 }
 
 #[tauri::command]
-pub async fn delete_floor(store: Store<'_>, id: FloorId) -> CmdResult<()> {
-    Ok(store.delete_floor(id).await?)
+pub async fn delete_floor(store: Store<'_>, session: Sess<'_>, id: FloorId) -> CmdResult<()> {
+    Ok(session
+        .require(&store, Permission::ManageSetup)?
+        .delete_floor(id)
+        .await?)
 }
 
 // ---- room types ----
 
 #[tauri::command]
-pub async fn list_room_types(store: Store<'_>) -> CmdResult<Vec<RoomType>> {
-    Ok(store.list_room_types().await?)
+pub async fn list_room_types(store: Store<'_>, session: Sess<'_>) -> CmdResult<Vec<RoomType>> {
+    Ok(session
+        .require(&store, Permission::ViewHotel)?
+        .list_room_types()
+        .await?)
 }
 
 #[tauri::command]
-pub async fn save_room_type(store: Store<'_>, room_type: RoomType) -> CmdResult<()> {
-    Ok(store.save_room_type(&room_type).await?)
+pub async fn save_room_type(
+    store: Store<'_>,
+    session: Sess<'_>,
+    room_type: RoomType,
+) -> CmdResult<()> {
+    Ok(session
+        .require(&store, Permission::ManageSetup)?
+        .save_room_type(&room_type)
+        .await?)
 }
 
 #[tauri::command]
-pub async fn delete_room_type(store: Store<'_>, id: RoomTypeId) -> CmdResult<()> {
-    Ok(store.delete_room_type(id).await?)
+pub async fn delete_room_type(
+    store: Store<'_>,
+    session: Sess<'_>,
+    id: RoomTypeId,
+) -> CmdResult<()> {
+    Ok(session
+        .require(&store, Permission::ManageSetup)?
+        .delete_room_type(id)
+        .await?)
 }
 
 // ---- spaces (rooms & suites) ----
 
 #[tauri::command]
-pub async fn list_spaces(store: Store<'_>, floor_id: Option<FloorId>) -> CmdResult<Vec<Space>> {
-    Ok(store.list_spaces(floor_id).await?)
+pub async fn list_spaces(
+    store: Store<'_>,
+    session: Sess<'_>,
+    floor_id: Option<FloorId>,
+) -> CmdResult<Vec<Space>> {
+    Ok(session
+        .require(&store, Permission::ViewHotel)?
+        .list_spaces(floor_id)
+        .await?)
 }
 
 #[tauri::command]
-pub async fn save_space(store: Store<'_>, space: Space) -> CmdResult<()> {
-    Ok(store.save_space(&space).await?)
+pub async fn save_space(store: Store<'_>, session: Sess<'_>, space: Space) -> CmdResult<()> {
+    Ok(session
+        .require(&store, Permission::ManageSetup)?
+        .save_space(&space)
+        .await?)
 }
 
 #[tauri::command]
-pub async fn delete_space(store: Store<'_>, id: SpaceId) -> CmdResult<()> {
-    Ok(store.delete_space(id).await?)
+pub async fn delete_space(store: Store<'_>, session: Sess<'_>, id: SpaceId) -> CmdResult<()> {
+    Ok(session
+        .require(&store, Permission::ManageSetup)?
+        .delete_space(id)
+        .await?)
 }
 
 // ---- rates & board ----
 
 #[tauri::command]
-pub async fn list_rate_rules(store: Store<'_>) -> CmdResult<Vec<RateRule>> {
-    Ok(store.list_rate_rules().await?)
+pub async fn list_rate_rules(store: Store<'_>, session: Sess<'_>) -> CmdResult<Vec<RateRule>> {
+    Ok(session
+        .require(&store, Permission::ViewHotel)?
+        .list_rate_rules()
+        .await?)
 }
 
 #[tauri::command]
-pub async fn save_rate_rule(store: Store<'_>, rule: RateRule) -> CmdResult<()> {
-    Ok(store.save_rate_rule(&rule).await?)
+pub async fn save_rate_rule(store: Store<'_>, session: Sess<'_>, rule: RateRule) -> CmdResult<()> {
+    Ok(session
+        .require(&store, Permission::ManageSetup)?
+        .save_rate_rule(&rule)
+        .await?)
 }
 
 #[tauri::command]
-pub async fn delete_rate_rule(store: Store<'_>, id: RateRuleId) -> CmdResult<()> {
-    Ok(store.delete_rate_rule(id).await?)
+pub async fn delete_rate_rule(
+    store: Store<'_>,
+    session: Sess<'_>,
+    id: RateRuleId,
+) -> CmdResult<()> {
+    Ok(session
+        .require(&store, Permission::ManageSetup)?
+        .delete_rate_rule(id)
+        .await?)
 }
 
 #[tauri::command]
-pub async fn list_board_options(store: Store<'_>) -> CmdResult<Vec<BoardOption>> {
-    Ok(store.list_board_options().await?)
+pub async fn list_board_options(
+    store: Store<'_>,
+    session: Sess<'_>,
+) -> CmdResult<Vec<BoardOption>> {
+    Ok(session
+        .require(&store, Permission::ViewHotel)?
+        .list_board_options()
+        .await?)
 }
 
 #[tauri::command]
-pub async fn save_board_option(store: Store<'_>, board: BoardOption) -> CmdResult<()> {
-    Ok(store.save_board_option(&board).await?)
+pub async fn save_board_option(
+    store: Store<'_>,
+    session: Sess<'_>,
+    board: BoardOption,
+) -> CmdResult<()> {
+    Ok(session
+        .require(&store, Permission::ManageSetup)?
+        .save_board_option(&board)
+        .await?)
 }
 
 #[tauri::command]
-pub async fn delete_board_option(store: Store<'_>, id: BoardOptionId) -> CmdResult<()> {
-    Ok(store.delete_board_option(id).await?)
+pub async fn delete_board_option(
+    store: Store<'_>,
+    session: Sess<'_>,
+    id: BoardOptionId,
+) -> CmdResult<()> {
+    Ok(session
+        .require(&store, Permission::ManageSetup)?
+        .delete_board_option(id)
+        .await?)
 }
 
 // ---- guests & bookings ----
 
 #[tauri::command]
-pub async fn search_guests(store: Store<'_>, query: String) -> CmdResult<Vec<Guest>> {
-    Ok(store.search_guests(&query).await?)
+pub async fn search_guests(
+    store: Store<'_>,
+    session: Sess<'_>,
+    query: String,
+) -> CmdResult<Vec<Guest>> {
+    Ok(session
+        .require(&store, Permission::ViewHotel)?
+        .search_guests(&query)
+        .await?)
 }
 
 #[tauri::command]
 pub async fn quote_room(
     store: Store<'_>,
+    session: Sess<'_>,
     space_id: SpaceId,
     stay: DateRange,
     adults: u8,
     children: u8,
     board_option_id: Option<BoardOptionId>,
 ) -> CmdResult<StayQuote> {
-    Ok(store
+    let acting = session.require(&store, Permission::ViewHotel)?;
+    Ok(acting
         .quote_room(space_id, stay, adults, children, board_option_id)
         .await?)
 }
@@ -148,49 +367,107 @@ pub async fn quote_room(
 #[tauri::command]
 pub async fn free_rooms(
     store: Store<'_>,
+    session: Sess<'_>,
     stay: DateRange,
     ignore_booking: Option<BookingId>,
 ) -> CmdResult<Vec<SpaceId>> {
-    Ok(store.free_rooms(stay, ignore_booking).await?)
+    Ok(session
+        .require(&store, Permission::ViewHotel)?
+        .free_rooms(stay, ignore_booking)
+        .await?)
 }
 
 #[tauri::command]
-pub async fn chart(store: Store<'_>, from: NaiveDate, to: NaiveDate) -> CmdResult<Vec<ChartEntry>> {
-    Ok(store.chart(from, to).await?)
+pub async fn chart(
+    store: Store<'_>,
+    session: Sess<'_>,
+    from: NaiveDate,
+    to: NaiveDate,
+) -> CmdResult<Vec<ChartEntry>> {
+    Ok(session
+        .require(&store, Permission::ViewHotel)?
+        .chart(from, to)
+        .await?)
 }
 
 #[tauri::command]
-pub async fn get_booking(store: Store<'_>, id: BookingId) -> CmdResult<BookingDetail> {
-    Ok(store.get_booking(id).await?)
+pub async fn get_booking(
+    store: Store<'_>,
+    session: Sess<'_>,
+    id: BookingId,
+) -> CmdResult<BookingDetail> {
+    Ok(session
+        .require(&store, Permission::ViewHotel)?
+        .get_booking(id)
+        .await?)
 }
 
 #[tauri::command]
 pub async fn save_booking(
     store: Store<'_>,
+    session: Sess<'_>,
     booking: Booking,
     guest: Guest,
 ) -> CmdResult<BookingDetail> {
-    Ok(store.save_booking(&booking, &guest).await?)
+    let acting = session.require(&store, Permission::MakeBookings)?;
+    // Staff may keep a price an admin set, but not set or change one.
+    if session.require(&store, Permission::OverridePrices).is_err() {
+        let saved = match acting.get_booking(booking.id).await {
+            Ok(d) => Some(d.booking),
+            Err(StoreError::NotFound { .. }) => None,
+            Err(e) => return Err(e.into()),
+        };
+        let changed = booking.rooms.iter().any(|room| {
+            let before = saved
+                .as_ref()
+                .and_then(|b| b.rooms.iter().find(|r| r.id == room.id))
+                .and_then(|r| r.price_override);
+            room.price_override != before
+        });
+        if changed {
+            return Err(CommandError::forbidden(
+                "Only an admin can set a price by hand.",
+            ));
+        }
+    }
+    Ok(acting.save_booking(&booking, &guest).await?)
 }
 
 #[tauri::command]
 pub async fn set_booking_status(
     store: Store<'_>,
+    session: Sess<'_>,
     id: BookingId,
     status: BookingStatus,
 ) -> CmdResult<BookingDetail> {
-    Ok(store.set_booking_status(id, status).await?)
+    let needed = match status {
+        BookingStatus::Cancelled | BookingStatus::NoShow => Permission::CancelBookings,
+        _ => Permission::MakeBookings,
+    };
+    Ok(session
+        .require(&store, needed)?
+        .set_booking_status(id, status)
+        .await?)
 }
 
 #[tauri::command]
-pub async fn search_bookings(store: Store<'_>, query: String) -> CmdResult<Vec<BookingListItem>> {
-    Ok(store.search_bookings(&query).await?)
+pub async fn search_bookings(
+    store: Store<'_>,
+    session: Sess<'_>,
+    query: String,
+) -> CmdResult<Vec<BookingListItem>> {
+    Ok(session
+        .require(&store, Permission::ViewHotel)?
+        .search_bookings(&query)
+        .await?)
 }
 
 // ---- dev helpers ----
 
 /// Loads the demo hotel if the database is empty. Returns whether it did.
+/// Recorded in the audit log as "System", not as the person who clicked.
 #[tauri::command]
-pub async fn seed_demo_data(store: Store<'_>) -> CmdResult<bool> {
+pub async fn seed_demo_data(store: Store<'_>, session: Sess<'_>) -> CmdResult<bool> {
+    session.require(&store, Permission::ManageSetup)?;
     Ok(store.seed_demo().await?)
 }

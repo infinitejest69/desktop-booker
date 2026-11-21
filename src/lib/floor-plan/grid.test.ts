@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { findFreeSpot, firstOverlap, fitsWithin, overlaps } from "./grid";
+import { findFreeSpot, firstOverlap, fitsWithin, freeSpots, minGridSize, overlaps, placeAt } from "./grid";
 
 const a = { x: 0, y: 0, w: 4, h: 3 };
 
@@ -46,5 +46,34 @@ describe("findFreeSpot", () => {
 
   it("returns null when the floor is full", () => {
     expect(findFreeSpot([{ x: 0, y: 0, w: 4, h: 4 }], 4, 4, 1, 1)).toBeNull();
+  });
+});
+
+describe("placeAt", () => {
+  it("centres the piece on the drop cell", () => {
+    expect(placeAt(5, 5, 3, 4, 20, 10)).toEqual({ x: 4, y: 3, w: 3, h: 4 });
+  });
+
+  it("keeps the piece inside the grid", () => {
+    expect(placeAt(0, 0, 3, 4, 20, 10)).toEqual({ x: 0, y: 0, w: 3, h: 4 });
+    expect(placeAt(19, 9, 3, 4, 20, 10)).toEqual({ x: 17, y: 6, w: 3, h: 4 });
+  });
+});
+
+describe("minGridSize", () => {
+  it("is the furthest right and bottom edge", () => {
+    expect(minGridSize([{ x: 2, y: 1, w: 3, h: 4 }, { x: 10, y: 0, w: 2, h: 2 }])).toEqual({ cols: 12, rows: 5 });
+    expect(minGridSize([])).toEqual({ cols: 1, rows: 1 });
+  });
+});
+
+describe("freeSpots", () => {
+  it("fills a row, then the next", () => {
+    const spots = freeSpots([], 9, 8, 3, 4, 4);
+    expect(spots.map((s) => [s.x, s.y])).toEqual([[0, 0], [3, 0], [6, 0], [0, 4]]);
+  });
+
+  it("stops when the floor is full", () => {
+    expect(freeSpots([], 6, 4, 3, 4, 5)).toHaveLength(2);
   });
 });

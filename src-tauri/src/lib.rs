@@ -3,8 +3,10 @@
 
 mod commands;
 mod error;
+mod session;
 
-use booker_store::SqliteStore;
+use booker_store::{SettingsRepo, SqliteStore};
+use session::Session;
 use tauri::{Manager, RunEvent};
 
 /// How many automatic on-exit backups to keep (Phase 7 adds scheduled ones).
@@ -20,11 +22,22 @@ pub fn run() {
             // `setup` isn't async, so wait for the database to open here.
             let store = tauri::async_runtime::block_on(SqliteStore::open(&db_path))?;
             println!("[desktop-booker] database: {}", db_path.display());
+            let idle = tauri::async_runtime::block_on(store.get_settings())
+                .map(|s| s.idle_lock_minutes)
+                .unwrap_or(15);
+            app.manage(Session::new(idle));
             app.manage(store);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             commands::app_version,
+            commands::session_status,
+            commands::create_first_admin,
+            commands::login,
+            commands::logout,
+            commands::list_users,
+            commands::save_user,
+            commands::list_audit,
             commands::get_settings,
             commands::save_settings,
             commands::list_floors,

@@ -1,4 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
+import type { AuditEntry } from "./bindings/AuditEntry";
+import type { SessionStatus } from "./bindings/SessionStatus";
+import type { User } from "./bindings/User";
+import type { UserId } from "./bindings/UserId";
 import type { BoardOption } from "./bindings/BoardOption";
 import type { BoardOptionId } from "./bindings/BoardOptionId";
 import type { Booking } from "./bindings/Booking";
@@ -20,11 +24,13 @@ import type { RoomTypeId } from "./bindings/RoomTypeId";
 import type { Space } from "./bindings/Space";
 import type { SpaceId } from "./bindings/SpaceId";
 
-export type ErrorKind = "validation" | "not_found" | "internal";
+export type ErrorKind = "validation" | "not_found" | "internal" | "locked" | "forbidden";
 
 export interface CommandError {
   kind: ErrorKind;
   message: string;
+  /** Seconds before trying again makes sense, e.g. after too many wrong PINs. */
+  retry_after?: number;
 }
 
 export function isCommandError(value: unknown): value is CommandError {
@@ -43,52 +49,75 @@ export function errorMessage(error: unknown): string {
   return String(error);
 }
 
+/** Fired on `window` when the backend says nobody is signed in. */
+export const LOCKED_EVENT = "booker:locked";
+
+async function call<T>(command: string, args?: Record<string, unknown>): Promise<T> {
+  try {
+    return await invoke<T>(command, args);
+  } catch (error) {
+    if (isCommandError(error) && error.kind === "locked") {
+      window.dispatchEvent(new CustomEvent(LOCKED_EVENT));
+    }
+    throw error;
+  }
+}
+
 export function newId(): string {
   return crypto.randomUUID();
 }
 
 export const api = {
-  appVersion: () => invoke<string>("app_version"),
+  appVersion: () => call<string>("app_version"),
 
-  getSettings: () => invoke<PropertySettings>("get_settings"),
-  saveSettings: (settings: PropertySettings) => invoke<void>("save_settings", { settings }),
+  sessionStatus: () => call<SessionStatus>("session_status"),
+  createFirstAdmin: (name: string, pin: string) => call<User>("create_first_admin", { name, pin }),
+  login: (userId: UserId, pin: string) => call<User>("login", { userId, pin }),
+  logout: () => call<void>("logout"),
+  listUsers: () => call<User[]>("list_users"),
+  saveUser: (user: User, pin: string | null) => call<void>("save_user", { user, pin }),
+  listAudit: (userId: UserId | null, entity: string | null, limit = 200) =>
+    call<AuditEntry[]>("list_audit", { userId, entity, limit }),
 
-  listFloors: () => invoke<Floor[]>("list_floors"),
-  saveFloor: (floor: Floor) => invoke<void>("save_floor", { floor }),
-  deleteFloor: (id: FloorId) => invoke<void>("delete_floor", { id }),
+  getSettings: () => call<PropertySettings>("get_settings"),
+  saveSettings: (settings: PropertySettings) => call<void>("save_settings", { settings }),
 
-  listRoomTypes: () => invoke<RoomType[]>("list_room_types"),
-  saveRoomType: (roomType: RoomType) => invoke<void>("save_room_type", { roomType }),
-  deleteRoomType: (id: RoomTypeId) => invoke<void>("delete_room_type", { id }),
+  listFloors: () => call<Floor[]>("list_floors"),
+  saveFloor: (floor: Floor) => call<void>("save_floor", { floor }),
+  deleteFloor: (id: FloorId) => call<void>("delete_floor", { id }),
 
-  listSpaces: (floorId?: FloorId) => invoke<Space[]>("list_spaces", { floorId: floorId ?? null }),
-  saveSpace: (space: Space) => invoke<void>("save_space", { space }),
-  deleteSpace: (id: SpaceId) => invoke<void>("delete_space", { id }),
+  listRoomTypes: () => call<RoomType[]>("list_room_types"),
+  saveRoomType: (roomType: RoomType) => call<void>("save_room_type", { roomType }),
+  deleteRoomType: (id: RoomTypeId) => call<void>("delete_room_type", { id }),
 
-  listRateRules: () => invoke<RateRule[]>("list_rate_rules"),
-  saveRateRule: (rule: RateRule) => invoke<void>("save_rate_rule", { rule }),
-  deleteRateRule: (id: RateRuleId) => invoke<void>("delete_rate_rule", { id }),
-  listBoardOptions: () => invoke<BoardOption[]>("list_board_options"),
-  saveBoardOption: (board: BoardOption) => invoke<void>("save_board_option", { board }),
-  deleteBoardOption: (id: BoardOptionId) => invoke<void>("delete_board_option", { id }),
+  listSpaces: (floorId?: FloorId) => call<Space[]>("list_spaces", { floorId: floorId ?? null }),
+  saveSpace: (space: Space) => call<void>("save_space", { space }),
+  deleteSpace: (id: SpaceId) => call<void>("delete_space", { id }),
 
-  searchGuests: (query: string) => invoke<Guest[]>("search_guests", { query }),
+  listRateRules: () => call<RateRule[]>("list_rate_rules"),
+  saveRateRule: (rule: RateRule) => call<void>("save_rate_rule", { rule }),
+  deleteRateRule: (id: RateRuleId) => call<void>("delete_rate_rule", { id }),
+  listBoardOptions: () => call<BoardOption[]>("list_board_options"),
+  saveBoardOption: (board: BoardOption) => call<void>("save_board_option", { board }),
+  deleteBoardOption: (id: BoardOptionId) => call<void>("delete_board_option", { id }),
+
+  searchGuests: (query: string) => call<Guest[]>("search_guests", { query }),
   quoteRoom: (
     spaceId: SpaceId,
     stay: DateRange,
     adults: number,
     children: number,
     boardOptionId: BoardOptionId | null,
-  ) => invoke<StayQuote>("quote_room", { spaceId, stay, adults, children, boardOptionId }),
+  ) => call<StayQuote>("quote_room", { spaceId, stay, adults, children, boardOptionId }),
   freeRooms: (stay: DateRange, ignoreBooking: BookingId | null = null) =>
-    invoke<SpaceId[]>("free_rooms", { stay, ignoreBooking }),
-  chart: (from: string, to: string) => invoke<ChartEntry[]>("chart", { from, to }),
-  getBooking: (id: BookingId) => invoke<BookingDetail>("get_booking", { id }),
+    call<SpaceId[]>("free_rooms", { stay, ignoreBooking }),
+  chart: (from: string, to: string) => call<ChartEntry[]>("chart", { from, to }),
+  getBooking: (id: BookingId) => call<BookingDetail>("get_booking", { id }),
   saveBooking: (booking: Booking, guest: Guest) =>
-    invoke<BookingDetail>("save_booking", { booking, guest }),
+    call<BookingDetail>("save_booking", { booking, guest }),
   setBookingStatus: (id: BookingId, status: BookingStatus) =>
-    invoke<BookingDetail>("set_booking_status", { id, status }),
-  searchBookings: (query: string) => invoke<BookingListItem[]>("search_bookings", { query }),
+    call<BookingDetail>("set_booking_status", { id, status }),
+  searchBookings: (query: string) => call<BookingListItem[]>("search_bookings", { query }),
 
-  seedDemoData: () => invoke<boolean>("seed_demo_data"),
+  seedDemoData: () => call<boolean>("seed_demo_data"),
 };

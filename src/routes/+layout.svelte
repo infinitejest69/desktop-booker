@@ -5,8 +5,11 @@
   import "../app.css";
   import { afterNavigate } from "$app/navigation";
   import { page } from "$app/state";
-  import { onMount } from "svelte";
-  import { api } from "#lib/api.ts";
+  import { onMount, untrack } from "svelte";
+  import { LOCKED_EVENT } from "#lib/api.ts";
+  import FirstRun from "#lib/session/FirstRun.svelte";
+  import LockScreen from "#lib/session/LockScreen.svelte";
+  import { Session, provideSession } from "#lib/session/session.svelte.ts";
   import { Button } from "@ui-sdk/svelte/button";
   import {
     Collapsible,
@@ -21,6 +24,9 @@
   }
 
   let { children }: Props = $props();
+
+  const session = new Session();
+  provideSession(session);
 
   // How far into this session's history we are, so Back can be disabled at the start.
   let depth = $state(0);
@@ -64,11 +70,32 @@
         forward();
       }
     };
+    // Any key, click or scroll counts as someone at the desk.
+    let lastActivity = Date.now();
+    const onActivity = () => (lastActivity = Date.now());
+    const onLocked = () => void session.lock();
+    const idleCheck = setInterval(() => {
+      const minutes = session.status?.idle_lock_minutes ?? 0;
+      if (session.user && minutes > 0 && Date.now() - lastActivity > minutes * 60_000) {
+        void session.lock();
+      }
+    }, 20_000);
+    void session.refresh();
+
     window.addEventListener("mouseup", onMouse);
     window.addEventListener("keydown", onKey);
+    window.addEventListener(LOCKED_EVENT, onLocked);
+    for (const type of ["pointerdown", "keydown", "wheel"]) {
+      window.addEventListener(type, onActivity, { passive: true });
+    }
     return () => {
+      clearInterval(idleCheck);
       window.removeEventListener("mouseup", onMouse);
       window.removeEventListener("keydown", onKey);
+      window.removeEventListener(LOCKED_EVENT, onLocked);
+      for (const type of ["pointerdown", "keydown", "wheel"]) {
+        window.removeEventListener(type, onActivity);
+      }
     };
   });
 
@@ -85,28 +112,36 @@
   ];
   const hotel = [
     { href: "/setup/property", label: "Hotel details" },
-    { href: "/setup/floors", label: "Floors" },
+    { href: "/setup/floors", label: "Floors and layout" },
     { href: "/setup/room-types", label: "Room types" },
     { href: "/setup/rates", label: "Rates" },
-    { href: "/setup/layout", label: "Layout editor" },
+    { href: "/setup/users", label: "Users" },
+    { href: "/setup/audit", label: "Audit log" },
   ];
 
   let hotelOpen = $state(false);
-  let hotelName = $state("");
+  const hotelName = $derived(session.status?.hotel_name ?? "");
 
-  // Refresh the sign after any navigation, so a renamed hotel shows straight away.
+  // Refresh after navigating, so a renamed hotel or changed lock time shows at once.
   $effect(() => {
     void page.url.pathname;
-    api
-      .getSettings()
-      .then((s) => (hotelName = s.hotel_name))
-      .catch(() => {});
+    // untrack: refreshing replaces session.user, which must not re-run this.
+    untrack(() => {
+      if (session.user) void session.refresh().catch(() => {});
+    });
   });
   $effect(() => {
     if (page.url.pathname.startsWith("/setup/")) hotelOpen = true;
   });
 </script>
 
+{#if !session.status}
+  <p class="muted" style="padding: 2rem">Loading…</p>
+{:else if session.status.needs_setup}
+  <FirstRun onDone={(u) => { session.signedIn(u); void session.refresh(); }} />
+{:else if !session.user}
+  <LockScreen status={session.status} onSignedIn={(u) => session.signedIn(u)} />
+{:else}
 <div class="shell">
   <nav aria-label="Main">
     <a class="sign" href="/">{hotelName || "Your hotel"}</a>
@@ -117,6 +152,7 @@
         </li>
       {/each}
     </ul>
+    {#if session.can("manage_setup")}
     <Collapsible bind:open={hotelOpen} class="group">
       <CollapsibleTrigger class="group-trigger">
         My hotel
@@ -132,21 +168,29 @@
         </ul>
       </CollapsiblePanel>
     </Collapsible>
+    {/if}
   </nav>
   <div class="content">
-    <div class="topbar" role="toolbar" aria-label="History">
-      <Button aria-label="Back" aria-keyshortcuts="Alt+ArrowLeft" disabled={depth === 0} onclick={back}>
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6" /></svg>
-      </Button>
-      <Button aria-label="Forward" aria-keyshortcuts="Alt+ArrowRight" disabled={ahead === 0} onclick={forward}>
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18l6-6-6-6" /></svg>
-      </Button>
+    <div class="topbar">
+      <div class="history" role="toolbar" aria-label="History">
+        <Button aria-label="Back" aria-keyshortcuts="Alt+ArrowLeft" disabled={depth === 0} onclick={back}>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6" /></svg>
+        </Button>
+        <Button aria-label="Forward" aria-keyshortcuts="Alt+ArrowRight" disabled={ahead === 0} onclick={forward}>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18l6-6-6-6" /></svg>
+        </Button>
+      </div>
+      <div class="who">
+        <span>Signed in as <strong>{session.user.name}</strong>{session.user.role === "admin" ? " (admin)" : ""}</span>
+        <Button onclick={() => session.lock()}>Switch user</Button>
+      </div>
     </div>
     <main>
       {@render children()}
     </main>
   </div>
 </div>
+{/if}
 <OverlayHost />
 
 <style>
@@ -274,10 +318,23 @@
     top: 0;
     z-index: 5;
     display: flex;
+    align-items: center;
     gap: calc(var(--ui-spacing) * 2);
     padding: calc(var(--ui-spacing) * 2) calc(var(--ui-spacing) * 8);
     background: var(--ground);
     border-bottom: 1px solid var(--rule);
+  }
+
+  .history {
+    display: flex;
+    gap: calc(var(--ui-spacing) * 2);
+  }
+
+  .who {
+    margin-inline-start: auto;
+    display: flex;
+    align-items: center;
+    gap: calc(var(--ui-spacing) * 3);
   }
 
   .topbar svg {

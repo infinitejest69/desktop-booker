@@ -6,13 +6,13 @@
 ## Tasks
 - [x] `store`: `users` table (name, role, PIN hash, active)
 - [x] `services`: PIN hashing/verification with `argon2`
-- [ ] First-run wizard: create the first Admin
-- [ ] Lock screen / PIN login; switch user; auto-lock after idle
-- [ ] Roles: Admin (settings, rates, users, delete) vs Staff (bookings, housekeeping)
-- [ ] Enforce roles in Tauri commands (not just in the UI)
+- [x] First-run wizard: create the first Admin
+- [x] Lock screen / PIN login; switch user; auto-lock after idle
+- [x] Roles: Admin (settings, rates, users, delete) vs Staff (bookings, housekeeping)
+- [x] Enforce roles in Tauri commands (not just in the UI)
 - [x] `audit_log`: entity, action, before/after JSON, user, timestamp, written in the same transaction
-- [ ] UI: users management (Admin)
-- [ ] UI: audit trail view with filters
+- [x] UI: users management (Admin)
+- [x] UI: audit trail view with filters
 
 ## Acceptance
 - A Staff user cannot change rates even by calling the command directly.
@@ -30,16 +30,11 @@
 - PINs stored only as Argon2 hashes (`booker-services`). Five wrong PINs lock that user out for 30 seconds.
 - The signed-in user lives in Tauri state. Every command checks the session and the permission it needs before touching the store; the store is given the acting user, so audit entries are written in the same transaction as the change.
 
-## Status at pause (2026-11-21)
-**Done (backend):**
-- `booker-core`: `User`, `Role`, `Permission` with the full permission table, PIN rules (4–8 digits), the last-admin guard, the `AuditEntry` type and the `idle_lock_minutes` setting.
-- `booker-services`: Argon2id `hash_pin` / `verify_pin`.
-- `booker-store`: migration `0003_users_audit.sql`; `list_users`, `save_user`, `pin_hash`; `store.as_user(&user)` so every save and delete (settings, floors, room types, spaces, rate rules, board options, bookings, status changes, users) writes an audit entry with before/after JSON **in the same transaction**; `list_audit(user, entity, limit)` lists newest first, tie-broken by the time-ordered id.
-- Tests: 96 Rust (incl. 7 new users/audit store tests), 23 Vitest, 20 Playwright — all passing.
-
-## Next session
-1. Tauri session state: signed-in user, `session_status`, `create_first_admin`, `login` (5 wrong PINs → 30 s lockout), `logout`; idle lock (default 15 min, `idle_lock_minutes`).
-2. Enforce permissions in every command (`require(Permission)`), use `store.as_user(...)` for changes; staff can't set `price_override`; new error kinds `locked` / `forbidden`.
-3. UI: first-run wizard, lock screen with PIN pad, signed-in name + Switch user in the top bar, hide admin-only menu items for staff, price override hidden for staff, auto-lock setting on Hotel details.
-4. UI: Users page and Audit log page (filters) under My hotel.
-5. Fake backend + Playwright tests for login, switch user, staff restrictions and the audit log.
+## Built (2026-11-21)
+- **Session (`src-tauri/src/session.rs`):** signed-in user behind a `Mutex`, idle lock (setting, default 15 min, 0 = never), five wrong PINs → 30-second lockout for that user. Restarting the app signs everyone out.
+- **Every command checks permission** via `session.require(&store, Permission::…)`, which returns the store acting as that user, so changes are audited under their name. Staff can't set or change a hand-set price (checked against the saved booking); cancel and no-show need `CancelBookings`. New error kinds `locked` and `forbidden`.
+- **New commands:** `session_status`, `create_first_admin` (only while no users exist), `login`, `logout`, `list_users`, `save_user`, `list_audit`. Demo data is still logged as "System".
+- **UI:** first-run screen, lock screen (choose person + PIN), "Signed in as …" with **Switch user** in the top bar, auto-lock after idle (client timer + server check), My hotel shown to admins only, **Users** and **Audit log** pages (filter by person and kind, before/after view), auto-lock setting on Hotel details, "Set the price by hand" hidden for staff, staff see "ask an admin" instead of "Load demo hotel".
+- **Bug found and fixed:** the layout's refresh-after-navigation effect read `session.user`, which every refresh replaces, so it looped forever; it now reads it with `untrack`.
+- **Tests:** 101 Rust (incl. session/permission tests), 25 Vitest, 25 Playwright (first run, wrong/right PIN, staff limits incl. a direct command refused, switch user, users + audit log).
+- **Lockout fix (Andy's report):** during a wrong-PIN lockout the PIN box stayed usable and the "try again in N seconds" text was a frozen snapshot. Now the fifth wrong PIN starts the lockout immediately (earlier tries say how many are left). The error carries `retry_after` seconds, and the lock screen disables the PIN box and Sign in **for that person only**, shows a live countdown and puts the cursor back in the PIN box when it ends. Trying during a lockout never extends it.

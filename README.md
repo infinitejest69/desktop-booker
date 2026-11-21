@@ -7,7 +7,7 @@ Built with **Rust + Tauri 2** and a **SvelteKit 3 (Svelte 5)** frontend. Runs on
 - Requirements & architecture: [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md)
 - Roadmap & progress: [docs/ROADMAP.md](docs/ROADMAP.md)
 
-> **Status:** Phases 0–2 done · Phase 3 (users, PIN login & audit log) in progress.
+> **Status:** Phases 0–3 done · Phase 4 (function suites & events) in progress.
 
 ## Prerequisites
 
@@ -36,7 +36,7 @@ pnpm install
 ```bash
 pnpm tauri dev
 ```
-Opens the DesktopBooker window. On an empty database, the Dashboard offers **Load demo hotel** (3 floors, 40 rooms, 2 suites, prices, board options and a few bookings). Frontend edits (`src/`) appear as soon as you save; Rust edits (`src-tauri/`, `crates/`) recompile and relaunch the window automatically. The first build takes about a minute.
+Opens the DesktopBooker window. On a new database it first asks you to create the admin (name + 4–8 digit PIN); after that everyone signs in with their own PIN, and the app locks itself after 15 idle minutes (changeable in Hotel details). On an empty database, the Dashboard offers **Load demo hotel** (3 floors, 40 rooms, 2 suites, prices, board options and a few bookings). Frontend edits (`src/`) appear as soon as you save; Rust edits (`src-tauri/`, `crates/`) recompile and relaunch the window automatically. The first build takes about a minute.
 
 - **NVIDIA on Linux, window blank or flickering:** `WEBKIT_DISABLE_DMABUF_RENDERER=1 pnpm tauri dev`. The `MESA-EGL` warnings in the terminal are harmless.
 - **Frontend only, in a browser:** `pnpm dev`, then open http://localhost:1420. Calls into Rust won't work there.

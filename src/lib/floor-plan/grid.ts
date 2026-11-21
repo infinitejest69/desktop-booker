@@ -37,3 +37,37 @@ export function findFreeSpot(
   }
   return null;
 }
+
+/** A piece of size w×h dropped with its centre on cell (cx, cy), kept inside the grid. */
+export function placeAt(cx: number, cy: number, w: number, h: number, cols: number, rows: number): GridRect {
+  const clamp = (v: number, max: number) => Math.min(Math.max(v, 0), Math.max(max, 0));
+  return { x: clamp(Math.round(cx - w / 2), cols - w), y: clamp(Math.round(cy - h / 2), rows - h), w, h };
+}
+
+/** The smallest grid that still holds every rect (at least 1×1). */
+export function minGridSize(rects: GridRect[]): { cols: number; rows: number } {
+  return {
+    cols: Math.max(1, ...rects.map((r) => r.x + r.w)),
+    rows: Math.max(1, ...rects.map((r) => r.y + r.h)),
+  };
+}
+
+/** Up to `count` free spots of size w×h, filled left to right, top to bottom. */
+export function freeSpots(
+  others: GridRect[],
+  cols: number,
+  rows: number,
+  w: number,
+  h: number,
+  count: number,
+): GridRect[] {
+  const taken = [...others];
+  const found: GridRect[] = [];
+  while (found.length < count) {
+    const spot = findFreeSpot(taken, cols, rows, w, h);
+    if (!spot) break;
+    found.push(spot);
+    taken.push(spot);
+  }
+  return found;
+}

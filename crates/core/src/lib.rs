@@ -34,7 +34,9 @@ pub use rates::{
     Adjustment, BoardOption, NightPrice, RateRule, StayQuote, quote_stay, room_rate_for_night,
     validate_board_option, validate_rate_rule,
 };
-pub use users::{PIN_MAX, PIN_MIN, Permission, Role, User, validate_pin, validate_user};
+pub use users::{
+    PIN_MAX, PIN_MIN, Permission, Role, SessionStatus, User, validate_pin, validate_user,
+};
 pub use validation::{
     ValidationError, ValidationResult, validate_floor, validate_floor_delete, validate_room_type,
     validate_room_type_delete, validate_settings, validate_space,

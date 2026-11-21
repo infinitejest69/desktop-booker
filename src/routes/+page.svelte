@@ -12,6 +12,9 @@
   import TariffChart from "#lib/chart/TariffChart.svelte";
   import { todaySummary } from "#lib/dashboard/today.ts";
   import { addDays, daysBetween, formatDay, today } from "#lib/dates.ts";
+  import { useSession } from "#lib/session/session.svelte.ts";
+
+  const session = useSession();
 
   const day = today();
   const chartFrom = addDays(day, -1);
@@ -117,13 +120,19 @@
   {:else if !hasFloors}
     <div class="panel stack" style="max-width: 32rem">
       <h2>Welcome</h2>
-      <p class="muted" style="margin: 0">
-        Start by setting up your hotel under My Hotel, or load a demo hotel to look around.
-      </p>
-      <div class="row">
-        <Button data-variant="solid" onclick={loadDemo}>Load demo hotel</Button>
-        <a class="link-button" href="/setup/property">Set up my hotel</a>
-      </div>
+      {#if session.can("manage_setup")}
+        <p class="muted" style="margin: 0">
+          Start by setting up your hotel under My hotel, or load a demo hotel to look around.
+        </p>
+        <div class="row">
+          <Button data-variant="solid" onclick={loadDemo}>Load demo hotel</Button>
+          <a class="link-button" href="/setup/property">Set up my hotel</a>
+        </div>
+      {:else}
+        <p class="muted" style="margin: 0">
+          The hotel's rooms haven't been set up yet. Ask an admin to add them under My hotel.
+        </p>
+      {/if}
     </div>
   {:else}
     <section class="glance" aria-label="Today at a glance">
