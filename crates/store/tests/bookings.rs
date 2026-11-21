@@ -532,13 +532,43 @@ async fn check_out_dirties_the_room_and_reports_add_up() {
     assert_eq!(revenue.len(), 1);
     assert_eq!((revenue[0].month, revenue[0].rooms), (5, Money(18_000)));
 
+    // A duplicate record for the same person, with their own booking, merges in.
+    let dup = Guest {
+        email: "jo.hughes@example.com".into(),
+        ..guest("Hughes")
+    };
+    let mut theirs = booking(&dup, &f.rooms[1], stay("2026-06-01", "2026-06-02"));
+    theirs.status = BookingStatus::Confirmed;
+    f.store.save_booking(&theirs, &dup).await.unwrap();
+    f.store.merge_guests(g.id, dup.id).await.unwrap();
+    assert!(
+        f.store
+            .search_guests("hughes")
+            .await
+            .unwrap()
+            .iter()
+            .all(|x| x.id != dup.id),
+        "the duplicate is gone"
+    );
+    let merged = f.store.guest_profile(g.id).await.unwrap();
+    assert_eq!(merged.stays.len(), 2);
+    assert_eq!(
+        merged.guest.email, "hughes@example.com",
+        "the kept email wins"
+    );
+    f.store
+        .set_booking_status(theirs.id, BookingStatus::Cancelled)
+        .await
+        .unwrap();
+
     // The guest's history and spend, then erased.
     let profile = f.store.guest_profile(g.id).await.unwrap();
-    assert_eq!(profile.stays.len(), 1);
+    // Their own stay plus the merged one (cancelled, so not in the spend).
+    assert_eq!(profile.stays.len(), 2);
     assert_eq!(profile.total_spend, Money(18_000));
     f.store.erase_guest(g.id).await.unwrap();
     let erased = f.store.guest_profile(g.id).await.unwrap();
     assert_eq!(erased.guest.display_name(), "Erased guest");
     assert!(erased.guest.email.is_empty());
-    assert_eq!(erased.stays.len(), 1, "bookings are kept");
+    assert_eq!(erased.stays.len(), 2, "bookings are kept");
 }

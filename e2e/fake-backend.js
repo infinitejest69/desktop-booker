@@ -520,7 +520,7 @@
     "save_settings", "save_floor", "delete_floor", "save_room_type", "delete_room_type",
     "save_space", "delete_space", "save_rate_rule", "delete_rate_rule", "save_board_option",
     "delete_board_option", "list_users", "save_user", "list_audit", "seed_demo_data",
-    "save_suite_rates", "save_tax_rate", "save_invoice_settings", "erase_guest", "revenue_report", "save_backup_settings", "backup_now", "restore_backup",
+    "save_suite_rates", "save_tax_rate", "save_invoice_settings", "erase_guest", "merge_guests", "revenue_report", "room_kpis", "save_backup_settings", "backup_now", "restore_backup",
   ]);
 
   const guestName = (b) => {
@@ -748,6 +748,14 @@
       });
     },
     revenue_report: () => [],
+    // Every room-night at £95 in the fake hotel.
+    room_kpis: ({ period }) => {
+      const days = handlers.occupancy_report({ period });
+      const sold = days.reduce((n, d) => n + d.occupied, 0);
+      const available = days.reduce((n, d) => n + d.rooms, 0);
+      const revenue = sold * 9500;
+      return { rooms_sold: sold, rooms_available: available, room_revenue: revenue, adr: sold ? 9500 : 0, revpar: available ? Math.round(revenue / available) : 0 };
+    },
     report_csv: ({ report }) => (report === "occupancy" ? "Night,Rooms sold,Rooms,Occupancy %\r\n" : "Month,Rooms\r\n"),
     guest_profile: ({ id: guestId }) => {
       const guest = db.guests.find((g) => g.id === guestId);
@@ -767,6 +775,15 @@
         .filter((b) => b.booking.guest_id === guestId && holds(b.booking.status))
         .reduce((n, b) => n + detailOf(b).total, 0);
       return { guest, stays, total_spend };
+    },
+    merge_guests: ({ keep, duplicate }) => {
+      const k = db.guests.find((g) => g.id === keep);
+      const d = db.guests.find((g) => g.id === duplicate);
+      for (const f of ["first_name", "last_name", "email", "phone", "address"]) if (!k[f].trim()) k[f] = d[f];
+      db.bookings.forEach((b) => b.booking.guest_id === duplicate && (b.booking.guest_id = keep));
+      db.suiteBookings.forEach((b) => b.guest_id === duplicate && (b.guest_id = keep));
+      db.events.forEach((e) => e.organiser_id === duplicate && (e.organiser_id = keep));
+      db.guests = db.guests.filter((g) => g.id !== duplicate);
     },
     erase_guest: ({ id: guestId }) => {
       db.guests = db.guests.map((g) =>

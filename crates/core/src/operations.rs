@@ -136,6 +136,41 @@ pub fn occupancy_total(days: &[DayOccupancy]) -> DayOccupancy {
     }
 }
 
+/// The two standard hotel measures for a period.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
+pub struct RoomKpis {
+    pub rooms_sold: u32,
+    pub rooms_available: u32,
+    pub room_revenue: Money,
+    /// Average daily rate: room revenue per room-night sold.
+    pub adr: Money,
+    /// Revenue per available room: room revenue per room-night available.
+    pub revpar: Money,
+}
+
+fn per(total: Money, count: u32) -> Money {
+    if count == 0 {
+        return Money::ZERO;
+    }
+    // Round to the nearest penny.
+    let c = i64::from(count);
+    Money((total.0 * 2 + c) / (2 * c))
+}
+
+/// ADR and RevPAR from a period's occupancy and its room revenue (rooms
+/// only, not board, suites or extras).
+pub fn room_kpis(days: &[DayOccupancy], room_revenue: Money) -> RoomKpis {
+    let total = occupancy_total(days);
+    RoomKpis {
+        rooms_sold: total.occupied,
+        rooms_available: total.rooms,
+        room_revenue,
+        adr: per(room_revenue, total.occupied),
+        revpar: per(room_revenue, total.rooms),
+    }
+}
+
 /// Revenue for one month, by where it came from. Gross amounts, as charged.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
@@ -235,6 +270,33 @@ pub struct GuestProfile {
 // GDPR
 // ---------------------------------------------------------------------------
 
+/// Two records for the same person combined: `keep`'s details win, its
+/// blanks are filled from `duplicate`, and both sets of notes are kept.
+pub fn merged_guest(keep: &Guest, duplicate: &Guest) -> Guest {
+    let pick = |a: &str, b: &str| {
+        if a.trim().is_empty() {
+            b.trim().to_string()
+        } else {
+            a.trim().to_string()
+        }
+    };
+    let notes = match (keep.notes.trim(), duplicate.notes.trim()) {
+        (a, "") => a.to_string(),
+        ("", b) => b.to_string(),
+        (a, b) if a == b => a.to_string(),
+        (a, b) => format!("{a}\n{b}"),
+    };
+    Guest {
+        id: keep.id,
+        first_name: pick(&keep.first_name, &duplicate.first_name),
+        last_name: pick(&keep.last_name, &duplicate.last_name),
+        email: pick(&keep.email, &duplicate.email),
+        phone: pick(&keep.phone, &duplicate.phone),
+        address: pick(&keep.address, &duplicate.address),
+        notes,
+    }
+}
+
 /// The guest with every personal detail removed. Bookings and invoices keep
 /// pointing at the record (so totals and reports still add up) but it no
 /// longer identifies anyone.
@@ -317,6 +379,30 @@ mod tests {
     }
 
     #[test]
+    fn adr_and_revpar_divide_room_revenue_by_sold_and_available() {
+        // 6 of 12 room-nights sold for £570: ADR £95, RevPAR £47.50.
+        let (a, b, c) = (SpaceId::new(), SpaceId::new(), SpaceId::new());
+        let nights = [
+            (d("2026-06-01"), a),
+            (d("2026-06-01"), b),
+            (d("2026-06-02"), a),
+            (d("2026-06-02"), b),
+            (d("2026-06-02"), c),
+            (d("2026-06-04"), c),
+        ];
+        let days = occupancy_by_day(
+            DateRange::new(d("2026-06-01"), d("2026-06-05")).unwrap(),
+            3,
+            &nights,
+        );
+        let k = room_kpis(&days, Money(57_000));
+        assert_eq!((k.rooms_sold, k.rooms_available), (6, 12));
+        assert_eq!(k.adr, Money(9_500));
+        assert_eq!(k.revpar, Money(4_750));
+        assert_eq!(room_kpis(&[], Money(100)).adr, Money::ZERO);
+    }
+
+    #[test]
     fn revenue_is_grouped_by_month_and_source() {
         let rows = revenue_by_month(&[
             (d("2026-07-02"), RevenueSource::Suites, Money(30_000)),
@@ -348,6 +434,35 @@ mod tests {
             csv,
             "Name,Notes,Spend\r\n\"Hughes, Jo\",\"Said \"\"hi\"\"\",-12.05\r\n"
         );
+    }
+
+    #[test]
+    fn merging_fills_blanks_and_keeps_both_notes() {
+        let keep = Guest {
+            id: GuestId::new(),
+            first_name: "Jo".into(),
+            last_name: "Hughes".into(),
+            email: String::new(),
+            phone: "07700 900123".into(),
+            address: String::new(),
+            notes: "Ground floor".into(),
+        };
+        let dup = Guest {
+            id: GuestId::new(),
+            first_name: "Joanne".into(),
+            last_name: "Hughes".into(),
+            email: "jo@example.com".into(),
+            phone: "01234 567890".into(),
+            address: "1 High St".into(),
+            notes: "Vegetarian".into(),
+        };
+        let m = merged_guest(&keep, &dup);
+        assert_eq!(m.id, keep.id);
+        assert_eq!(m.first_name, "Jo");
+        assert_eq!(m.email, "jo@example.com");
+        assert_eq!(m.phone, "07700 900123");
+        assert_eq!(m.address, "1 High St");
+        assert_eq!(m.notes, "Ground floor\nVegetarian");
     }
 
     #[test]

@@ -16,6 +16,8 @@
   import type { HousekeepingStatus } from "#lib/bindings/HousekeepingStatus.ts";
   import type { RoomType } from "#lib/bindings/RoomType.ts";
   import type { Space } from "#lib/bindings/Space.ts";
+  import type { SuiteBookingEntry } from "#lib/bindings/SuiteBookingEntry.ts";
+  import { timePart } from "#lib/suites/suites.ts";
   import { boardLabel } from "#lib/booking/board.ts";
   import { addDays, formatDay, today } from "#lib/dates.ts";
   import { roomStatusLabel, roomStatuses, type RoomStatus } from "#lib/floor-plan/status.ts";
@@ -32,6 +34,9 @@
   let view = $state<string[]>([page.url.searchParams.get("view") === "cards" ? "cards" : "plan"]);
   let floorTab = $state<string | null>(null);
   let selected = $state<string | null>(null);
+  let hires = $state<SuiteBookingEntry[]>([]);
+  /** Suite use is shown at this time ("HH:MM"), or across the day when empty. */
+  let at = $state(new Date().toTimeString().slice(0, 5));
 
   const isToday = $derived(date === today());
   const suiteCount = $derived(spaces.filter((s) => s.kind === "suite").length);
@@ -42,7 +47,20 @@
   );
   const dirtyCount = $derived([...hk.values()].filter((s) => s === "dirty").length);
   const typeCodes = $derived(new Map(roomTypes.map((t) => [t.id, t.code])));
-  const selectedRoom = $derived(spaces.find((s) => s.id === selected) ?? null);
+  const selectedRoom = $derived(spaces.find((s) => s.id === selected && s.kind === "room") ?? null);
+  const selectedSuite = $derived(spaces.find((s) => s.id === selected && s.kind === "suite") ?? null);
+  /** Each suite in use at the chosen time (or booked that day), with what for. */
+  const suiteUse = $derived.by(() => {
+    const use = new Map<string, string>();
+    const moment = at ? `${date}T${at}:00` : null;
+    for (const h of hires) {
+      const b = h.booking;
+      if (moment ? b.start <= moment && moment < b.end : true) {
+        if (!use.has(b.suite_id)) use.set(b.suite_id, moment ? b.title : `${timePart(b.start)} ${b.title}`);
+      }
+    }
+    return use;
+  });
   /** Who's in the selected room around the chosen day. */
   const selectedStays = $derived(
     entries.filter((e) => e.space_id === selected && e.stay.start <= date && date <= e.stay.end),
@@ -66,6 +84,14 @@
 
   $effect(() => {
     void loadEntries(date);
+  });
+
+  $effect(() => {
+    const d = date;
+    api
+      .listSuiteBookings(`${d}T00:00:00`, `${addDays(d, 1)}T00:00:00`)
+      .then((list) => (hires = list))
+      .catch(() => (hires = []));
   });
 
   // Keep the view in the address so Back returns to it.
@@ -126,6 +152,10 @@
         <FieldLabel>Show the day</FieldLabel>
         <Input type="date" value={date} onValueChange={(v) => v && (date = v)} />
       </Field>
+      <Field>
+        <FieldLabel>Suites at</FieldLabel>
+        <Input type="time" bind:value={at} />
+      </Field>
       <Button onclick={() => (date = today())}>Today</Button>
       <ToggleGroup aria-label="View" bind:value={view}>
         <Toggle value="plan">Plan</Toggle>
@@ -163,6 +193,7 @@
                 <span data-key="in_house">In house</span>
                 <span data-key="departing">Departing</span>
                 <span data-key="suite">Function suite</span>
+                <span data-key="suite-use">Suite in use</span>
                 <span data-key="oos">Out of service</span>
                 {#if isToday}<span data-key="dirty">Dirty</span>{/if}
               </div>
@@ -188,8 +219,30 @@
                 {statuses}
                 housekeeping={isToday ? hk : undefined}
                 {selected}
+                {suiteUse}
                 onSelect={(id) => (selected = selected === id ? null : id)}
               />
+              {#if selectedSuite && selectedSuite.floor_id === floor.id}
+                {@const own = hires.filter((h) => h.booking.suite_id === selectedSuite.id)}
+                <aside class="panel stack room-panel" aria-label={selectedSuite.name}>
+                  <div class="room-head">
+                    <strong>{selectedSuite.name}</strong>
+                    <Button onclick={() => (selected = null)}>Close</Button>
+                  </div>
+                  <p>{formatDay(date, { weekday: "long", day: "numeric", month: "short" })}</p>
+                  {#each own as h (h.booking.id)}
+                    <div class="stay">
+                      <a href={`/suites/booking?id=${h.booking.id}`}>{h.booking.title}</a>
+                      <span class="muted">
+                        {timePart(h.booking.start)} to {timePart(h.booking.end)}, {h.booking.attendees} people{h.event_name ? `, ${h.event_name}` : ""}
+                      </span>
+                    </div>
+                  {:else}
+                    <p class="muted">Not booked this day.</p>
+                  {/each}
+                  <a class="link-button" href={`/suites/booking?suite=${selectedSuite.id}&date=${date}`}>Book this suite</a>
+                </aside>
+              {/if}
               {#if selectedRoom && selectedRoom.floor_id === floor.id}
                 {@const status = hk.get(selectedRoom.id) ?? "inspected"}
                 <aside class="panel stack room-panel" aria-label={`Room ${selectedRoom.name}`}>
@@ -305,6 +358,10 @@
 
   .legend [data-key="suite"]::before {
     background: var(--heather-wash);
+  }
+
+  .legend [data-key="suite-use"]::before {
+    background: var(--heather);
   }
 
   .legend [data-key="oos"]::before {

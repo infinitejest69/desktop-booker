@@ -1,6 +1,9 @@
 <script lang="ts">
   import { confirm } from "@ui-sdk/svelte/alert-dialog";
   import { Button } from "@ui-sdk/svelte/button";
+  import { Field, FieldLabel } from "@ui-sdk/svelte/field";
+  import { Input } from "@ui-sdk/svelte/input";
+  import type { Guest } from "#lib/bindings/Guest.ts";
   import { toast } from "@ui-sdk/svelte/toast";
   import { page } from "$app/state";
   import { api, errorMessage } from "#lib/api.ts";
@@ -13,6 +16,35 @@
 
   const session = useSession();
   let profile = $state<GuestProfile | null>(null);
+  let dupQuery = $state("");
+  let dupResults = $state<Guest[]>([]);
+
+  async function findDuplicates() {
+    const q = dupQuery.trim();
+    const all = q.length < 2 ? [] : await api.searchGuests(q).catch(() => []);
+    dupResults = all.filter((g) => g.id !== profile?.guest.id);
+  }
+
+  async function merge(dup: Guest) {
+    if (!profile) return;
+    const dupName = `${dup.first_name} ${dup.last_name}`.trim();
+    const yes = await confirm({
+      title: `Merge ${dupName} into ${name}?`,
+      description: `${dupName}'s bookings, suite hire and events move to ${name}. Details ${name} hasn't got are filled in from ${dupName}, and both sets of notes are kept. The duplicate record is then removed. This can't be undone.`,
+      confirmLabel: "Merge",
+      cancelLabel: "Cancel",
+    });
+    if (!yes) return;
+    try {
+      await api.mergeGuests(profile.guest.id, dup.id);
+      toast.success(`Merged ${dupName} into ${name}`);
+      dupQuery = "";
+      dupResults = [];
+      await load(profile.guest.id);
+    } catch (error) {
+      toast.error("Couldn't merge the guests", { description: errorMessage(error) });
+    }
+  }
 
   async function load(id: string) {
     try {
@@ -120,6 +152,26 @@
         <p class="muted">No stays yet.</p>
       {/if}
     </section>
+    {#if session.can("manage_setup")}
+      <section class="panel stack merge" aria-labelledby="merge-heading">
+        <h2 id="merge-heading">Merge a duplicate</h2>
+        <p class="muted" style="margin: 0">Find another record for the same person to combine it into this one.</p>
+        <Field>
+          <FieldLabel>Find the duplicate</FieldLabel>
+          <Input type="search" bind:value={dupQuery} oninput={findDuplicates} placeholder="Name, email or phone" />
+        </Field>
+        {#if dupResults.length}
+          <ul class="dups">
+            {#each dupResults as d (d.id)}
+              <li>
+                <span>{`${d.first_name} ${d.last_name}`.trim()}{d.email ? ` (${d.email})` : ""}</span>
+                <Button onclick={() => merge(d)}>Merge into {name}</Button>
+              </li>
+            {/each}
+          </ul>
+        {/if}
+      </section>
+    {/if}
   {:else}
     <p class="muted">Loading…</p>
   {/if}
@@ -151,5 +203,25 @@
 
   .pre {
     white-space: pre-line;
+  }
+
+  .merge {
+    margin-top: calc(var(--ui-spacing) * 4);
+  }
+
+  .dups {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--ui-spacing) * 2);
+  }
+
+  .dups li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: calc(var(--ui-spacing) * 3);
   }
 </style>

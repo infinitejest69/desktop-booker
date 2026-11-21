@@ -278,6 +278,58 @@ impl OperationsRepo for SqliteStore {
         })
     }
 
+    async fn merge_guests(&self, keep: GuestId, duplicate: GuestId) -> StoreResult<()> {
+        if keep == duplicate {
+            return Err(booker_core::ValidationError::Empty {
+                field: "A different guest to merge",
+            }
+            .into());
+        }
+        let mut tx = self.pool.begin().await?;
+        let kept = load_guest(&mut tx, keep).await?;
+        let dup = load_guest(&mut tx, duplicate).await?;
+        let merged = booker_core::merged_guest(&kept, &dup);
+        let (from, to) = (duplicate.to_string(), keep.to_string());
+        // Everything that points at the duplicate now points at the guest kept.
+        sqlx::query("UPDATE bookings SET guest_id = ? WHERE guest_id = ?")
+            .bind(&to)
+            .bind(&from)
+            .execute(&mut *tx)
+            .await?;
+        sqlx::query("UPDATE suite_bookings SET guest_id = ? WHERE guest_id = ?")
+            .bind(&to)
+            .bind(&from)
+            .execute(&mut *tx)
+            .await?;
+        sqlx::query("UPDATE events SET organiser_id = ? WHERE organiser_id = ?")
+            .bind(&to)
+            .bind(&from)
+            .execute(&mut *tx)
+            .await?;
+        upsert_guest(&mut tx, &merged).await?;
+        sqlx::query(
+            "UPDATE guests SET deleted_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
+        )
+        .bind(&from)
+        .execute(&mut *tx)
+        .await?;
+        record(
+            &mut tx,
+            Change {
+                entity: "guest",
+                entity_id: to,
+                action: "merged",
+                summary: format!("Merged a duplicate record into {}", merged.display_name()),
+                before: json(&dup),
+                after: json(&merged),
+                actor: self.actor.as_ref(),
+            },
+        )
+        .await?;
+        tx.commit().await?;
+        Ok(())
+    }
+
     async fn erase_guest(&self, id: GuestId) -> StoreResult<()> {
         let mut tx = self.pool.begin().await?;
         let guest = load_guest(&mut tx, id).await?;

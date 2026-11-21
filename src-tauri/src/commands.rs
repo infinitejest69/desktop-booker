@@ -805,6 +805,24 @@ pub async fn revenue_report(
         .await?)
 }
 
+/// ADR and RevPAR for a period: admin only, like revenue.
+#[tauri::command]
+pub async fn room_kpis(
+    store: Store<'_>,
+    session: Sess<'_>,
+    period: DateRange,
+) -> CmdResult<booker_core::RoomKpis> {
+    let acting = session.require(&store, Permission::ViewAudit)?;
+    let days = acting.occupancy_report(period).await?;
+    let rooms: booker_core::Money = acting
+        .revenue_report(period)
+        .await?
+        .iter()
+        .map(|m| m.rooms)
+        .sum();
+    Ok(booker_core::room_kpis(&days, rooms))
+}
+
 /// A report as CSV text, for spreadsheets.
 #[tauri::command]
 pub async fn report_csv(
@@ -881,6 +899,20 @@ pub async fn guest_profile(
     Ok(session
         .require(&store, Permission::ViewHotel)?
         .guest_profile(id)
+        .await?)
+}
+
+/// Combines a duplicate guest into another: admin only, it can't be undone.
+#[tauri::command]
+pub async fn merge_guests(
+    store: Store<'_>,
+    session: Sess<'_>,
+    keep: GuestId,
+    duplicate: GuestId,
+) -> CmdResult<()> {
+    Ok(session
+        .require(&store, Permission::ManageSetup)?
+        .merge_guests(keep, duplicate)
         .await?)
 }
 

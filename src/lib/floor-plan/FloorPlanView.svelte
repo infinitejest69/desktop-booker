@@ -17,6 +17,8 @@
     selected?: string | null;
     /** Small, for the dashboard: names only. */
     compact?: boolean;
+    /** Suites with a hire at the chosen time: suite id → e.g. "Wedding breakfast". */
+    suiteUse?: Map<string, string>;
   }
 
   let {
@@ -29,6 +31,7 @@
     onSelect,
     selected = null,
     compact = false,
+    suiteUse,
   }: Props = $props();
 
   const hkLabel: Record<HousekeepingStatus, string> = { dirty: "Dirty", clean: "Clean", inspected: "Ready" };
@@ -40,8 +43,12 @@
 
   /** Everything about a room in words, for screen readers and the tooltip. */
   function describe(space: Space): string {
+    if (space.kind === "suite") {
+      const use = suiteUse?.get(space.id);
+      return `${space.name}: ${space.out_of_service ? "Out of service" : use ? `in use, ${use}` : "free"}`;
+    }
     const hk = hkOf(space);
-    return `${space.kind === "suite" ? "" : "Room "}${space.name}: ${roomStatusLabel[statusOf(space)]}${hk ? `, ${hkLabel[hk].toLowerCase()}` : ""}`;
+    return `Room ${space.name}: ${roomStatusLabel[statusOf(space)]}${hk ? `, ${hkLabel[hk].toLowerCase()}` : ""}`;
   }
 
   function statusOf(space: Space): RoomStatus {
@@ -64,6 +71,7 @@
         class:selected={selected === space.id}
         data-kind={space.kind}
         data-status={statusOf(space)}
+        data-in-use={space.kind === "suite" && suiteUse?.has(space.id) ? "" : undefined}
         data-hk={hkOf(space)}
         title={describe(space)}
         style:left={`${space.rect.x * cell}px`}
@@ -71,7 +79,7 @@
         style:width={`${space.rect.w * cell}px`}
         style:height={`${space.rect.h * cell}px`}
       >
-        {#if onSelect && space.kind === "room"}
+        {#if onSelect}
           <button type="button" class="hit" aria-label={describe(space)} aria-pressed={selected === space.id} onclick={() => onSelect(space.id)}></button>
         {/if}
         <span class="name">{space.name}</span>
@@ -81,6 +89,8 @@
           </span>
           {#if space.kind === "room" && statusOf(space) !== "free"}
             <span class="state">{roomStatusLabel[statusOf(space)]}</span>
+          {:else if space.kind === "suite" && suiteUse?.has(space.id)}
+            <span class="state">In use: {suiteUse.get(space.id)}</span>
           {/if}
         {/if}
         <span class="visually-hidden">, {roomStatusLabel[statusOf(space)]}</span>
@@ -134,6 +144,12 @@
   .tile[data-kind="suite"][data-status="free"] {
     background: var(--heather-wash);
     border-color: var(--ui-background);
+  }
+
+  .tile[data-kind="suite"][data-in-use] {
+    background: var(--heather);
+    border-color: var(--heather);
+    color: #fff;
   }
 
   .tile[data-status="in_house"] {

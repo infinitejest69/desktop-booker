@@ -242,6 +242,13 @@ pub trait OperationsRepo {
         period: DateRange,
     ) -> impl Future<Output = StoreResult<Vec<MonthRevenue>>> + Send;
     fn guest_profile(&self, id: GuestId) -> impl Future<Output = StoreResult<GuestProfile>> + Send;
+    /// Combines a duplicate guest record into `keep`: bookings, suite hire
+    /// and events move across, and the duplicate is removed.
+    fn merge_guests(
+        &self,
+        keep: GuestId,
+        duplicate: GuestId,
+    ) -> impl Future<Output = StoreResult<()>> + Send;
     /// Removes a guest's personal details (GDPR) but keeps their bookings.
     fn erase_guest(&self, id: GuestId) -> impl Future<Output = StoreResult<()>> + Send;
 }

@@ -12,7 +12,7 @@ Items move here from their phase (and are marked *moved to Phase 8* there), so e
 - [x] Dashboard: compact floor plans showing availability and dirty rooms at a glance, linking to the floor plan
 
 ### From Phase 4 (suites & events)
-- [ ] Floor plan: show suite use at a chosen time
+- [x] Floor plan: show suite use at a chosen time
 - [ ] Packages: decide whether per-head suite pricing plus the room block's group rate is enough, or build a package item (e.g. "wedding package" at one price)
 
 ### From Phase 5 (invoicing)
@@ -22,15 +22,20 @@ Items move here from their phase (and are marked *moved to Phase 8* there), so e
 - [ ] SMTP settings; password stored in the OS keychain (`keyring`)
 - [ ] Email templates (confirmation, amendment, cancellation) with placeholders
 - [ ] Send confirmation from a booking; `email_log`; test-send button (acceptance: arrives through a real SMTP account)
-- [ ] Duplicate guest merge
+- [x] Duplicate guest merge
 - [ ] Save CSV and GDPR exports to a file (needs a save-file dialog, `tauri-plugin-dialog`); Phase 6 offers copy to clipboard
-- [ ] Report: ADR & RevPAR
+- [x] Report: ADR & RevPAR
 
 ### From Phase 7 (backups & packaging)
 - [ ] Clean install from the CI artefacts on Windows and Linux (Phase 7 acceptance)
 - [ ] macOS .dmg checked on a Mac
 
 ## Notes / decisions
+**More built (2026-11-21):**
+- *Suite use on the floor plan:* a "Suites at" time on the floor plan (now, by default); a suite booked at that time turns heather and says what for; clear the time to see every suite booked that day. Clicking a suite lists its hires that day with links.
+- *ADR and RevPAR:* `room_kpis` in core (room revenue ÷ room-nights sold, and ÷ room-nights available, rounded to the penny), shown on Reports for admins.
+- *Merging guests:* `merged_guest` in core keeps the chosen record's details, fills its blanks from the duplicate and keeps both notes; the store moves bookings, suite hire and events across, hides the duplicate and logs it. Admin only, on the guest's page.
+
 **Rooms at a glance, built (2026-11-21):** the Floor plan page is now *Floor plan and housekeeping*, with Plan and Cards views of the same rooms. On the plan, tiles keep their availability colour and get a *Dirty* or *Clean* marker; clicking a room opens a panel with its guests (booking, dates, board), Dirty / Clean / Ready and *Book this room*. Each floor has *Mark floor clean* and *Mark floor ready*. The counts include *To clean*. `/housekeeping` redirects to the Cards view and the Housekeeping menu item is gone; *Daily lists* moved to the floor plan toolbar. The dashboard has *The hotel today*: a small plan of each floor with a brass dot on rooms to clean. The morning rule is `housekeeping_today` in core: a room in `room_nights` for last night is dirty unless marked since the local day began.
 
 - Created 2026-11-21 at Andy's request: "lets do phase 6 and 7 and push all the undone features in a phase 8".

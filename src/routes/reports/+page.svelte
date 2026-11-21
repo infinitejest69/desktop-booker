@@ -7,6 +7,7 @@
   import type { DateRange } from "#lib/bindings/DateRange.ts";
   import type { DayOccupancy } from "#lib/bindings/DayOccupancy.ts";
   import type { MonthRevenue } from "#lib/bindings/MonthRevenue.ts";
+  import type { RoomKpis } from "#lib/bindings/RoomKpis.ts";
   import { formatDay, today } from "#lib/dates.ts";
   import { formatMoney } from "#lib/format.ts";
   import { useSession } from "#lib/session/session.svelte.ts";
@@ -29,6 +30,7 @@
   let month = $state(today().slice(0, 7));
   let days = $state<DayOccupancy[]>([]);
   let revenue = $state<MonthRevenue[]>([]);
+  let kpis = $state<RoomKpis | null>(null);
 
   const occupied = $derived(days.reduce((n, d) => n + d.occupied, 0));
   const available = $derived(days.reduce((n, d) => n + d.rooms, 0));
@@ -42,6 +44,10 @@
       .then((d) => (days = d))
       .catch((error) => toast.error("Couldn't load occupancy", { description: errorMessage(error) }));
     if (canSeeRevenue) {
+      api
+        .roomKpis(monthRange(m))
+        .then((k) => (kpis = k))
+        .catch(() => (kpis = null));
       api
         .revenueReport(yearRange(m))
         .then((r) => (revenue = r))
@@ -78,6 +84,12 @@
       <Button onclick={() => copyCsv("occupancy")}>Copy as CSV</Button>
     </div>
     <p class="summary"><strong>{totalPct}</strong> full: {occupied} of {available} room-nights sold.</p>
+    {#if canSeeRevenue && kpis}
+      <p class="kpis" aria-label="Room rates">
+        <span>Average rate per night sold (ADR) <strong>{formatMoney(kpis.adr)}</strong></span>
+        <span>Revenue per available room (RevPAR) <strong>{formatMoney(kpis.revpar)}</strong></span>
+      </p>
+    {/if}
     <div class="bars" role="list" aria-label="Occupancy by night">
       {#each days as d (d.date)}
         <div
@@ -151,6 +163,13 @@
 
   .summary {
     font-size: 1.1rem;
+  }
+
+  .kpis {
+    display: flex;
+    flex-wrap: wrap;
+    gap: calc(var(--ui-spacing) * 6);
+    margin: 0;
   }
 
   .bars {

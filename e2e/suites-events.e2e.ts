@@ -122,3 +122,18 @@ test("staff can build events but not set the group rate", async ({ page }) => {
   await page.getByRole("button", { name: "Save changes" }).click();
   await expect(page.getByRole("heading", { level: 1, name: "Hughes–Price wedding" })).toBeVisible();
 });
+
+test("the floor plan shows which suites are in use at a chosen time", async ({ demoHotel: page }) => {
+  await nav(page, "Floor plan");
+  const at = page.getByLabel("Suites at");
+  await at.fill("11:00");
+  const suite = page.getByRole("button", { name: "Garden Suite: in use, Board meeting" });
+  await expect(suite).toBeVisible();
+  await at.fill("15:00");
+  await expect(page.getByRole("button", { name: "Garden Suite: free" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Garden Suite: free" }).click();
+  const panel = page.getByRole("complementary", { name: "Garden Suite" });
+  await expect(panel.getByRole("link", { name: "Board meeting" })).toBeVisible();
+  await expect(panel).toContainText("10:00 to 12:00");
+});

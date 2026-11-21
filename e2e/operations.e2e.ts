@@ -82,6 +82,9 @@ test("the occupancy report counts tonight's rooms", async ({ demoHotel: page }) 
   await expect(
     page.getByRole("list", { name: "Occupancy by night" }).getByRole("listitem").nth(tonight - 1),
   ).toHaveAccessibleName(/66\.7%, 2 of 3/);
+  await expect(page.getByRole("paragraph", { name: "Room rates" }).or(page.getByLabel("Room rates"))).toContainText(
+    "Average rate per night sold (ADR) £95.00",
+  );
 });
 
 test("the dashboard warns until a backup is taken", async ({ demoHotel: page }) => {
@@ -113,4 +116,34 @@ test("a missing backup folder is refused and restoring asks first", async ({ dem
   await expect(dialog).toContainText("A backup of the data as it is now is taken first");
   await dialog.getByRole("button", { name: "Cancel" }).click();
   await expect(dialog).toHaveCount(0);
+});
+
+test("a duplicate guest can be merged in", async ({ demoHotel: page }) => {
+  // A second record for Margaret, with a phone number her main one lacks.
+  await page.evaluate(() => {
+    const db = (window as unknown as { __fakeDb: { guests: object[] } }).__fakeDb;
+    db.guests.push({
+      id: crypto.randomUUID(),
+      first_name: "Maggie",
+      last_name: "Hughes",
+      email: "",
+      phone: "07700 900999",
+      address: "",
+      notes: "",
+    });
+  });
+
+  await nav(page, "Guests");
+  await page.getByRole("searchbox", { name: "Search" }).fill("Margaret");
+  await page.getByRole("link", { name: "Margaret Hughes" }).click();
+  const merge = page.getByRole("region", { name: "Merge a duplicate" });
+  await merge.getByRole("searchbox", { name: "Find the duplicate" }).fill("Maggie");
+  await merge.getByRole("button", { name: "Merge into Margaret Hughes" }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Merge" }).click();
+  await expect(page.getByText("Merged Maggie Hughes into Margaret Hughes")).toBeVisible();
+  await expect(page.getByRole("region", { name: "Contact" })).toContainText("07700 900999");
+
+  await nav(page, "Guests");
+  await page.getByRole("searchbox", { name: "Search" }).fill("Maggie");
+  await expect(page.getByText("No guests match.")).toBeVisible();
 });
