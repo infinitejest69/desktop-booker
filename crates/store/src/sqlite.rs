@@ -4,13 +4,14 @@ use std::path::Path;
 use std::str::FromStr;
 
 use booker_core::{
-    Floor, FloorId, PropertySettings, RoomType, RoomTypeId, Space, SpaceId, validate_floor,
-    validate_floor_delete, validate_room_type, validate_room_type_delete, validate_settings,
-    validate_space,
+    Floor, FloorId, PropertySettings, RoomType, RoomTypeId, Space, SpaceId, User, UserId,
+    validate_floor, validate_floor_delete, validate_room_type, validate_room_type_delete,
+    validate_settings, validate_space,
 };
 use sqlx::SqliteConnection;
 use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePool, SqlitePoolOptions};
 
+use crate::audit::{Change, json, record};
 use crate::repo::{FloorRepo, RoomTypeRepo, SettingsRepo, SpaceRepo};
 use crate::rows::{FloorRow, RoomTypeRow, SettingsRow, SpaceRow, convert_all, kind_str};
 use crate::{StoreError, StoreResult};
@@ -23,6 +24,15 @@ static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("./migrations");
 #[derive(Clone)]
 pub struct SqliteStore {
     pub(crate) pool: SqlitePool,
+    /// Who changes made through this handle are recorded against.
+    pub(crate) actor: Option<Actor>,
+}
+
+/// The person (or system task) making changes, as written to the audit log.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Actor {
+    pub user_id: Option<UserId>,
+    pub name: String,
 }
 
 impl SqliteStore {
@@ -60,9 +70,21 @@ impl SqliteStore {
         Self::migrated(pool).await
     }
 
+    /// A handle that records changes against `user`. Cheap: the connection
+    /// pool inside is shared, only the actor differs.
+    pub fn as_user(&self, user: &User) -> SqliteStore {
+        SqliteStore {
+            pool: self.pool.clone(),
+            actor: Some(Actor {
+                user_id: Some(user.id),
+                name: user.name.clone(),
+            }),
+        }
+    }
+
     async fn migrated(pool: SqlitePool) -> StoreResult<Self> {
         MIGRATOR.run(&pool).await?;
-        Ok(Self { pool })
+        Ok(Self { pool, actor: None })
     }
 }
 
@@ -152,7 +174,7 @@ impl SettingsRepo for SqliteStore {
     async fn get_settings(&self) -> StoreResult<PropertySettings> {
         let row: Option<SettingsRow> = sqlx::query_as(
             "SELECT hotel_name, address, phone, email, currency, timezone,
-                    check_in_time, check_out_time
+                    check_in_time, check_out_time, idle_lock_minutes
              FROM property_settings WHERE id = 1",
         )
         .fetch_optional(&self.pool)
@@ -162,15 +184,19 @@ impl SettingsRepo for SqliteStore {
 
     async fn save_settings(&self, settings: &PropertySettings) -> StoreResult<()> {
         validate_settings(settings)?;
+        let before = self.get_settings().await.ok();
+        let mut tx = self.pool.begin().await?;
         sqlx::query(
             "INSERT INTO property_settings
-                (id, hotel_name, address, phone, email, currency, timezone, check_in_time, check_out_time)
-             VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?)
+                (id, hotel_name, address, phone, email, currency, timezone, check_in_time,
+                 check_out_time, idle_lock_minutes)
+             VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?)
              ON CONFLICT (id) DO UPDATE SET
                 hotel_name = excluded.hotel_name, address = excluded.address,
                 phone = excluded.phone, email = excluded.email,
                 currency = excluded.currency, timezone = excluded.timezone,
                 check_in_time = excluded.check_in_time, check_out_time = excluded.check_out_time,
+                idle_lock_minutes = excluded.idle_lock_minutes,
                 updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')",
         )
         .bind(settings.hotel_name.trim())
@@ -181,8 +207,23 @@ impl SettingsRepo for SqliteStore {
         .bind(settings.timezone.trim())
         .bind(settings.check_in_time.trim())
         .bind(settings.check_out_time.trim())
-        .execute(&self.pool)
+        .bind(i64::from(settings.idle_lock_minutes))
+        .execute(&mut *tx)
         .await?;
+        record(
+            &mut tx,
+            Change {
+                entity: "settings",
+                entity_id: "hotel".into(),
+                action: "updated",
+                summary: "Changed hotel details".into(),
+                before: before.as_ref().and_then(json),
+                after: json(settings),
+                actor: self.actor.as_ref(),
+            },
+        )
+        .await?;
+        tx.commit().await?;
         Ok(())
     }
 }
@@ -198,6 +239,7 @@ impl FloorRepo for SqliteStore {
         let others = load_floors(&mut tx).await?;
         let spaces = load_spaces(&mut tx, Some(floor.id)).await?;
         validate_floor(floor, &others, &spaces)?;
+        let before = others.iter().find(|f| f.id == floor.id).cloned();
         sqlx::query(
             "INSERT INTO floors (id, name, level, grid_cols, grid_rows) VALUES (?, ?, ?, ?, ?)
              ON CONFLICT (id) DO UPDATE SET
@@ -212,6 +254,27 @@ impl FloorRepo for SqliteStore {
         .bind(i64::from(floor.grid_rows))
         .execute(&mut *tx)
         .await?;
+        record(
+            &mut tx,
+            Change {
+                entity: "floor",
+                entity_id: floor.id.to_string(),
+                action: if before.is_some() {
+                    "updated"
+                } else {
+                    "created"
+                },
+                summary: format!(
+                    "{} floor {}",
+                    if before.is_some() { "Changed" } else { "Added" },
+                    floor.name.trim()
+                ),
+                before: before.as_ref().and_then(json),
+                after: json(floor),
+                actor: self.actor.as_ref(),
+            },
+        )
+        .await?;
         tx.commit().await?;
         Ok(())
     }
@@ -221,6 +284,7 @@ impl FloorRepo for SqliteStore {
         let floor = load_floor(&mut tx, id).await?;
         let spaces = load_spaces(&mut tx, Some(id)).await?;
         validate_floor_delete(&floor, &spaces)?;
+        let summary = format!("Deleted floor {}", floor.name);
         sqlx::query(
             "UPDATE floors SET deleted_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
                                updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
@@ -228,6 +292,19 @@ impl FloorRepo for SqliteStore {
         )
         .bind(id.to_string())
         .execute(&mut *tx)
+        .await?;
+        record(
+            &mut tx,
+            Change {
+                entity: "floor",
+                entity_id: id.to_string(),
+                action: "deleted",
+                summary,
+                before: json(&floor),
+                after: None,
+                actor: self.actor.as_ref(),
+            },
+        )
         .await?;
         tx.commit().await?;
         Ok(())
@@ -244,6 +321,7 @@ impl RoomTypeRepo for SqliteStore {
         let mut tx = self.pool.begin().await?;
         let others = load_room_types(&mut tx).await?;
         validate_room_type(room_type, &others)?;
+        let before = others.iter().find(|t| t.id == room_type.id).cloned();
         sqlx::query(
             "INSERT INTO room_types (id, name, code, default_occupancy, max_occupancy, description,
                                      base_rate, extra_adult_rate, child_rate)
@@ -267,6 +345,27 @@ impl RoomTypeRepo for SqliteStore {
         .bind(room_type.child_rate.0)
         .execute(&mut *tx)
         .await?;
+        record(
+            &mut tx,
+            Change {
+                entity: "room_type",
+                entity_id: room_type.id.to_string(),
+                action: if before.is_some() {
+                    "updated"
+                } else {
+                    "created"
+                },
+                summary: format!(
+                    "{} room type {}",
+                    if before.is_some() { "Changed" } else { "Added" },
+                    room_type.name.trim()
+                ),
+                before: before.as_ref().and_then(json),
+                after: json(room_type),
+                actor: self.actor.as_ref(),
+            },
+        )
+        .await?;
         tx.commit().await?;
         Ok(())
     }
@@ -280,6 +379,7 @@ impl RoomTypeRepo for SqliteStore {
             .ok_or(StoreError::NotFound { what: "Room type" })?;
         let spaces = load_spaces(&mut tx, None).await?;
         validate_room_type_delete(&room_type, &spaces)?;
+        let summary = format!("Deleted room type {}", room_type.name);
         sqlx::query(
             "UPDATE room_types SET deleted_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
                                    updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
@@ -287,6 +387,19 @@ impl RoomTypeRepo for SqliteStore {
         )
         .bind(id.to_string())
         .execute(&mut *tx)
+        .await?;
+        record(
+            &mut tx,
+            Change {
+                entity: "room_type",
+                entity_id: id.to_string(),
+                action: "deleted",
+                summary,
+                before: json(&room_type),
+                after: None,
+                actor: self.actor.as_ref(),
+            },
+        )
         .await?;
         tx.commit().await?;
         Ok(())
@@ -304,6 +417,7 @@ impl SpaceRepo for SqliteStore {
         let floor = load_floor(&mut tx, space.floor_id).await?;
         let all = load_spaces(&mut tx, None).await?;
         validate_space(space, &floor, &all)?;
+        let before = all.iter().find(|s| s.id == space.id).cloned();
         if let Some(rt) = space.room_type_id {
             let exists = load_room_types(&mut tx).await?.iter().any(|t| t.id == rt);
             if !exists {
@@ -346,24 +460,62 @@ impl SpaceRepo for SqliteStore {
         .bind(space.notes.trim())
         .execute(&mut *tx)
         .await?;
+        record(
+            &mut tx,
+            Change {
+                entity: "space",
+                entity_id: space.id.to_string(),
+                action: if before.is_some() {
+                    "updated"
+                } else {
+                    "created"
+                },
+                summary: format!(
+                    "{} {}",
+                    if before.is_some() { "Changed" } else { "Added" },
+                    space.name.trim()
+                ),
+                before: before.as_ref().and_then(json),
+                after: json(space),
+                actor: self.actor.as_ref(),
+            },
+        )
+        .await?;
         tx.commit().await?;
         Ok(())
     }
 
     async fn delete_space(&self, id: SpaceId) -> StoreResult<()> {
-        let result = sqlx::query(
+        let mut tx = self.pool.begin().await?;
+        let space = load_spaces(&mut tx, None)
+            .await?
+            .into_iter()
+            .find(|s| s.id == id)
+            .ok_or(StoreError::NotFound {
+                what: "Room or suite",
+            })?;
+        sqlx::query(
             "UPDATE spaces SET deleted_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
                                updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
              WHERE id = ? AND deleted_at IS NULL",
         )
         .bind(id.to_string())
-        .execute(&self.pool)
+        .execute(&mut *tx)
         .await?;
-        if result.rows_affected() == 0 {
-            return Err(StoreError::NotFound {
-                what: "Room or suite",
-            });
-        }
+        record(
+            &mut tx,
+            Change {
+                entity: "space",
+                entity_id: id.to_string(),
+                action: "deleted",
+                summary: format!("Deleted {}", space.name),
+                before: json(&space),
+                after: None,
+                actor: self.actor.as_ref(),
+            },
+        )
+        .await?;
+        tx.commit().await?;
         Ok(())
     }
 }

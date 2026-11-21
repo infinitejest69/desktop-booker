@@ -12,6 +12,7 @@
       timezone: "Europe/London",
       check_in_time: "15:00",
       check_out_time: "11:00",
+      idle_lock_minutes: 15,
     },
     floors: [],
     types: [],

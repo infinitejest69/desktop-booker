@@ -71,6 +71,12 @@ pub enum ValidationError {
     InvalidStatusChange { from: String, to: String },
     #[error("The guest needs a first or last name")]
     GuestNameRequired,
+    #[error("A PIN is 4 to 8 digits")]
+    InvalidPin,
+    #[error("The hotel needs at least one active admin")]
+    LastAdmin,
+    #[error("Auto-lock must be between 0 (never) and 240 minutes")]
+    InvalidIdleLock,
 }
 
 pub type ValidationResult = Result<(), ValidationError>;
@@ -96,6 +102,9 @@ pub fn validate_settings(settings: &PropertySettings) -> ValidationResult {
         return Err(ValidationError::InvalidCurrency);
     }
     require(&settings.timezone, "Time zone")?;
+    if settings.idle_lock_minutes > 240 {
+        return Err(ValidationError::InvalidIdleLock);
+    }
     for t in [&settings.check_in_time, &settings.check_out_time] {
         if !is_hh_mm(t) {
             return Err(ValidationError::InvalidTime);

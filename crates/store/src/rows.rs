@@ -38,6 +38,7 @@ pub(crate) struct SettingsRow {
     timezone: String,
     check_in_time: String,
     check_out_time: String,
+    idle_lock_minutes: i64,
 }
 
 impl From<SettingsRow> for PropertySettings {
@@ -51,6 +52,7 @@ impl From<SettingsRow> for PropertySettings {
             timezone: r.timezone,
             check_in_time: r.check_in_time,
             check_out_time: r.check_out_time,
+            idle_lock_minutes: u16::try_from(r.idle_lock_minutes).unwrap_or(15),
         }
     }
 }

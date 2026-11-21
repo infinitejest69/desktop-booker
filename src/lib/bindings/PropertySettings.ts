@@ -19,4 +19,8 @@ check_in_time: string,
 /**
  * Usual departure time, "HH:MM".
  */
-check_out_time: string, };
+check_out_time: string, 
+/**
+ * Lock the app after this many idle minutes (0 = never).
+ */
+idle_lock_minutes: number, };

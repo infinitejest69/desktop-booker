@@ -3,15 +3,17 @@
 //!
 //! Callers use the traits in [`repo`]; [`SqliteStore`] implements them.
 
+mod audit;
 mod bookings;
 mod error;
 pub mod repo;
 mod rows;
 mod seed;
 mod sqlite;
+mod users;
 
 pub use error::{StoreError, StoreResult};
 pub use repo::{
     BookingRepo, FloorRepo, GuestRepo, RateRepo, RoomTypeRepo, SettingsRepo, SpaceRepo,
 };
-pub use sqlite::SqliteStore;
+pub use sqlite::{Actor, SqliteStore};

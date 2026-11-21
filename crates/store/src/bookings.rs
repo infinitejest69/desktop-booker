@@ -12,6 +12,7 @@ use booker_core::{
 use chrono::{Datelike, NaiveDate};
 use sqlx::SqliteConnection;
 
+use crate::audit::{Change, json, record};
 use crate::repo::{BookingRepo, GuestRepo, RateRepo};
 use crate::rows::{int, uuid};
 use crate::sqlite::{load_room_types, load_spaces};
@@ -571,19 +572,47 @@ async fn write_booking(
     Ok(())
 }
 
-/// Runs a soft-delete `UPDATE … WHERE id = ?`, reporting NotFound if nothing matched.
-/// `sql: &'static str` keeps the query text fixed at compile time, as sqlx requires.
+/// Runs a soft-delete `UPDATE … WHERE id = ?` and logs it, reporting
+/// NotFound if nothing matched. `sql: &'static str` keeps the query text fixed
+/// at compile time, as sqlx requires.
 async fn soft_delete(
     store: &SqliteStore,
     sql: &'static str,
     id: String,
     what: &'static str,
+    entity: &'static str,
+    before: Option<String>,
+    summary: String,
 ) -> StoreResult<()> {
-    let done = sqlx::query(sql).bind(id).execute(&store.pool).await?;
+    let mut tx = store.pool.begin().await?;
+    let done = sqlx::query(sql).bind(&id).execute(&mut *tx).await?;
     if done.rows_affected() == 0 {
         return Err(StoreError::NotFound { what });
     }
+    record(
+        &mut tx,
+        Change {
+            entity,
+            entity_id: id,
+            action: "deleted",
+            summary,
+            before,
+            after: None,
+            actor: store.actor.as_ref(),
+        },
+    )
+    .await?;
+    tx.commit().await?;
     Ok(())
+}
+
+/// "Added" for a new record, "Changed" for an existing one.
+fn verb(existed: bool) -> (&'static str, &'static str) {
+    if existed {
+        ("updated", "Changed")
+    } else {
+        ("created", "Added")
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -607,6 +636,11 @@ impl RateRepo for SqliteStore {
             .map(u8::to_string)
             .collect::<Vec<_>>()
             .join(",");
+        let mut tx = self.pool.begin().await?;
+        let before = load_rate_rules(&mut tx)
+            .await?
+            .into_iter()
+            .find(|r| r.id == rule.id);
         sqlx::query(
             "INSERT INTO rate_rules (id, name, room_type_id, start_date, end_date, weekdays,
                                      priority, adjustment_kind, adjustment_value, active)
@@ -629,18 +663,42 @@ impl RateRepo for SqliteStore {
         .bind(kind)
         .bind(value)
         .bind(rule.active)
-        .execute(&self.pool)
+        .execute(&mut *tx)
         .await?;
+        let (action, word) = verb(before.is_some());
+        record(
+            &mut tx,
+            Change {
+                entity: "rate_rule",
+                entity_id: rule.id.to_string(),
+                action,
+                summary: format!("{word} rate rule {}", rule.name.trim()),
+                before: before.as_ref().and_then(json),
+                after: json(rule),
+                actor: self.actor.as_ref(),
+            },
+        )
+        .await?;
+        tx.commit().await?;
         Ok(())
     }
 
     async fn delete_rate_rule(&self, id: RateRuleId) -> StoreResult<()> {
+        let rule = self
+            .list_rate_rules()
+            .await?
+            .into_iter()
+            .find(|r| r.id == id);
+        let name = rule.as_ref().map(|r| r.name.clone()).unwrap_or_default();
         soft_delete(
             self,
             "UPDATE rate_rules SET deleted_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
              WHERE id = ? AND deleted_at IS NULL",
             id.to_string(),
             "Rate rule",
+            "rate_rule",
+            rule.as_ref().and_then(json),
+            format!("Deleted rate rule {name}"),
         )
         .await
     }
@@ -654,6 +712,7 @@ impl RateRepo for SqliteStore {
         let mut tx = self.pool.begin().await?;
         let others = load_boards(&mut tx).await?;
         validate_board_option(board, &others)?;
+        let before = others.iter().find(|b| b.id == board.id).cloned();
         sqlx::query(
             "INSERT INTO board_options (id, code, name, adult_price, child_price)
              VALUES (?, ?, ?, ?, ?)
@@ -669,17 +728,40 @@ impl RateRepo for SqliteStore {
         .bind(board.child_price.0)
         .execute(&mut *tx)
         .await?;
+        let (action, word) = verb(before.is_some());
+        record(
+            &mut tx,
+            Change {
+                entity: "board_option",
+                entity_id: board.id.to_string(),
+                action,
+                summary: format!("{word} board option {}", board.name.trim()),
+                before: before.as_ref().and_then(json),
+                after: json(board),
+                actor: self.actor.as_ref(),
+            },
+        )
+        .await?;
         tx.commit().await?;
         Ok(())
     }
 
     async fn delete_board_option(&self, id: BoardOptionId) -> StoreResult<()> {
+        let board = self
+            .list_board_options()
+            .await?
+            .into_iter()
+            .find(|b| b.id == id);
+        let name = board.as_ref().map(|b| b.name.clone()).unwrap_or_default();
         soft_delete(
             self,
             "UPDATE board_options SET deleted_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
              WHERE id = ? AND deleted_at IS NULL",
             id.to_string(),
             "Board option",
+            "board_option",
+            board.as_ref().and_then(json),
+            format!("Deleted board option {name}"),
         )
         .await
     }
@@ -785,8 +867,32 @@ impl BookingRepo for SqliteStore {
 
     async fn save_booking(&self, booking: &Booking, guest: &Guest) -> StoreResult<BookingDetail> {
         let mut tx = self.pool.begin().await?;
+        let before = match detail(&mut tx, booking.id).await {
+            Ok(d) => Some(d),
+            Err(StoreError::NotFound { .. }) => None,
+            Err(e) => return Err(e),
+        };
         write_booking(&mut tx, booking, guest).await?;
         let saved = detail(&mut tx, booking.id).await?;
+        let (action, _) = verb(before.is_some());
+        let what = if before.is_some() { "Changed" } else { "Made" };
+        record(
+            &mut tx,
+            Change {
+                entity: "booking",
+                entity_id: booking.id.to_string(),
+                action,
+                summary: format!(
+                    "{what} booking {} for {}",
+                    saved.booking.reference,
+                    guest.display_name()
+                ),
+                before: before.as_ref().and_then(json),
+                after: json(&saved),
+                actor: self.actor.as_ref(),
+            },
+        )
+        .await?;
         tx.commit().await?;
         Ok(saved)
     }
@@ -808,9 +914,35 @@ impl BookingRepo for SqliteStore {
             .into());
         }
         let guest = load_guest(&mut tx, booking.guest_id).await?;
+        let before = detail(&mut tx, id).await?;
         booking.status = status;
         write_booking(&mut tx, &booking, &guest).await?;
         let saved = detail(&mut tx, id).await?;
+        let what = match status {
+            BookingStatus::Provisional => "Marked provisional",
+            BookingStatus::Confirmed => "Confirmed",
+            BookingStatus::CheckedIn => "Checked in",
+            BookingStatus::CheckedOut => "Checked out",
+            BookingStatus::Cancelled => "Cancelled",
+            BookingStatus::NoShow => "Marked no-show",
+        };
+        record(
+            &mut tx,
+            Change {
+                entity: "booking",
+                entity_id: id.to_string(),
+                action: status.as_str(),
+                summary: format!(
+                    "{what} booking {} for {}",
+                    saved.booking.reference,
+                    guest.display_name()
+                ),
+                before: json(&before),
+                after: json(&saved),
+                actor: self.actor.as_ref(),
+            },
+        )
+        .await?;
         tx.commit().await?;
         Ok(saved)
     }

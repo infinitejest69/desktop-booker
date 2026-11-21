@@ -1,8 +1,4 @@
-//! Side-effecting services for DesktopBooker: email, PDF, CSV export,
-//! PIN hashing and OS keychain access. Implemented from Phase 3 onward.
+//! Side-effecting services for DesktopBooker: PIN hashing now; email, PDF,
+//! CSV export and keychain access in later phases.
 
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn placeholder() {}
-}
+pub mod pin;

@@ -22,6 +22,8 @@ pub struct PropertySettings {
     pub check_in_time: String,
     /// Usual departure time, "HH:MM".
     pub check_out_time: String,
+    /// Lock the app after this many idle minutes (0 = never).
+    pub idle_lock_minutes: u16,
 }
 
 impl Default for PropertySettings {
@@ -35,6 +37,7 @@ impl Default for PropertySettings {
             timezone: "Europe/London".into(),
             check_in_time: "15:00".into(),
             check_out_time: "11:00".into(),
+            idle_lock_minutes: 15,
         }
     }
 }

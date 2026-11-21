@@ -72,6 +72,14 @@ define_id!(
     /// Identifies one room within a [`crate::Booking`].
     BookingRoomId
 );
+define_id!(
+    /// Identifies a [`crate::User`].
+    UserId
+);
+define_id!(
+    /// Identifies an [`crate::AuditEntry`].
+    AuditId
+);
 
 #[cfg(test)]
 mod tests {
