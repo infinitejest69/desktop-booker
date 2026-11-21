@@ -101,6 +101,10 @@ pub enum ValidationError {
     NotEnoughRooms { wanted: u16, free: u16 },
     #[error("Setup and clear-down must each be under 24 hours")]
     InvalidBuffer,
+    #[error("A tax rate must be between 0% and 100%")]
+    InvalidTaxRate,
+    #[error("A refund can't be more than has been paid")]
+    RefundTooLarge,
 }
 
 pub type ValidationResult = Result<(), ValidationError>;

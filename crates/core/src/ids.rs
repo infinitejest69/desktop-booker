@@ -105,3 +105,18 @@ mod tests {
         assert_eq!(back, a);
     }
 }
+
+define_id!(
+    /// Identifies a [`crate::TaxRate`].
+    TaxRateId
+);
+
+define_id!(
+    /// Identifies a [`crate::Charge`] on a folio.
+    ChargeId
+);
+
+define_id!(
+    /// Identifies a [`crate::Payment`].
+    PaymentId
+);

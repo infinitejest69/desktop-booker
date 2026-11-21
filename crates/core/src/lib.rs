@@ -10,6 +10,7 @@ pub mod dates;
 pub mod events;
 pub mod grid;
 pub mod ids;
+pub mod invoices;
 pub mod money;
 pub mod property;
 pub mod rates;
@@ -32,8 +33,13 @@ pub use events::{
 };
 pub use grid::{GridRect, MAX_GRID_CELLS};
 pub use ids::{
-    AuditId, BoardOptionId, BookingId, BookingRoomId, EventId, FloorId, GuestId, RateRuleId,
-    RoomTypeId, SpaceId, SuiteBookingId, UserId,
+    AuditId, BoardOptionId, BookingId, BookingRoomId, ChargeId, EventId, FloorId, GuestId,
+    PaymentId, RateRuleId, RoomTypeId, SpaceId, SuiteBookingId, TaxRateId, UserId,
+};
+pub use invoices::{
+    BASIS_POINTS, Charge, ChargeCategory, FolioTotals, LineAmounts, Payment, PaymentMethod,
+    TaxRate, TaxSummary, folio_totals, format_invoice_number, line_amounts, validate_charge,
+    validate_payment, validate_tax_rate,
 };
 pub use money::Money;
 pub use property::{Floor, PropertySettings, RoomType, Space, SpaceKind, SuiteCapacities};
