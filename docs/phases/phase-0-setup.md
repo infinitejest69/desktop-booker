@@ -42,11 +42,13 @@ gh repo view desktop-booker
 
 - **ui-sdk added (2026-11-21):** `@ui-sdk/svelte` + `@ui-sdk/core` `0.1.0-beta.13` (unstyled, accessible UI behaviours: keyboard, focus, ARIA, popups). Pinned exactly because it is beta. Agent usage notes are in `AGENTS.md`; the `ui-sdk` skill is in `.agents/skills/` (linked from `.claude/skills/`).
 
-## Status at pause (2026-11-18)
-- Locally verified: `pnpm check`, `pnpm test`, `cargo fmt/clippy/test` all pass; `pnpm tauri dev` builds and opens the window.
-- CI run for `fix(ci)` commit: **Lint & test (Linux) passed**. The ubuntu / windows / macos build jobs were still running at the pause.
+- **SvelteKit 3 (2026-11-21):** merged Dependabot PR #1 (Kit 2.70 → 3.x, resolved to 3.4.0); this clears the SvelteKit/cookie security alerts. Migration:
+  - `svelte.config.js` removed. The adapter and preprocess config moved into `sveltekit({...})` in `vite.config.js` (Kit 3 no longer reads the config file).
+  - `@sveltejs/adapter-static` 3 → 4 (v3 only supports Kit 2).
+  - `tsconfig.json` now `extends: "$app/tsconfig"`.
+  - The PR's own CI failed only because of pnpm's `minimumReleaseAge` check (Kit 3.1.1 was brand new). By merge time the version was old enough.
+- Remaining alert: `glib` 0.18 (Rust, medium) comes in through Tauri's GTK stack on Linux. It can't be upgraded until Tauri moves, and we don't use `VariantStrIter`.
+- Linux dev note: `MESA-EGL ... failed to create dri2 screen` warnings on NVIDIA are a harmless WebKitGTK warning. If the window ever renders blank, try `WEBKIT_DISABLE_DMABUF_RENDERER=1 pnpm tauri dev`.
 
-## Next session
-1. Check CI: `gh run list -L3`. If a build job failed, `gh run view <id> --log-failed` and fix.
-2. Triage Dependabot: review the alerts at /security/dependabot; merge safe patch/minor PRs; **hold the SvelteKit 3 major** (decide via ADR), or configure `.github/dependabot.yml` to group updates and ignore majors.
-3. Once CI is green on all 3 OSes → mark Phase 0 `done` in ROADMAP and start Phase 1.
+## Completed (2026-11-21)
+CI green on main for Lint & test + Build on ubuntu / windows / macOS. Kit 3 migration verified locally (`pnpm check`, `pnpm test`, `pnpm build`, cargo fmt/clippy/test, `pnpm tauri dev` loads the page).
