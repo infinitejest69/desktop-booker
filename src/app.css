@@ -1,0 +1,110 @@
+@layer ui-sdk;
+
+:root {
+  --ui-radius: 6px;
+  --ui-font-size: 0.875rem;
+  --ui-primary: light-dark(oklch(0.42 0.08 165), oklch(0.8 0.1 165));
+  --ui-primary-foreground: light-dark(oklch(0.99 0 0), oklch(0.18 0.02 165));
+  --ui-ring-border: light-dark(oklch(0.42 0.08 165), oklch(0.8 0.1 165));
+
+  --app-sidebar: light-dark(oklch(0.97 0.006 165), oklch(0.19 0.01 165));
+  --app-gap: calc(var(--ui-spacing) * 4);
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: var(--ui-background);
+  color: var(--ui-foreground);
+  font-family: var(--ui-font-sans);
+  font-size: var(--ui-font-size);
+  line-height: var(--ui-line-height);
+}
+
+h1 {
+  font-size: 1.375rem;
+  margin: 0 0 calc(var(--ui-spacing) * 1);
+}
+
+h2 {
+  font-size: 1rem;
+  margin: 0;
+}
+
+.page {
+  padding: calc(var(--ui-spacing) * 6) calc(var(--ui-spacing) * 8);
+  max-width: 72rem;
+}
+
+.page-intro {
+  color: var(--ui-muted-foreground);
+  margin: 0 0 calc(var(--ui-spacing) * 6);
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--app-gap);
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: calc(var(--ui-spacing) * 3);
+}
+
+.row > [data-slot="field"] {
+  flex: 1 1 10rem;
+}
+
+.split {
+  display: grid;
+  grid-template-columns: minmax(16rem, 1fr) minmax(20rem, 26rem);
+  gap: calc(var(--ui-spacing) * 8);
+  align-items: start;
+}
+
+.panel {
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius);
+  padding: calc(var(--ui-spacing) * 5);
+}
+
+.muted {
+  color: var(--ui-muted-foreground);
+}
+
+table.list {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+table.list th,
+table.list td {
+  text-align: start;
+  padding: calc(var(--ui-spacing) * 2) calc(var(--ui-spacing) * 3);
+  border-bottom: 1px solid var(--ui-border);
+}
+
+table.list th {
+  color: var(--ui-muted-foreground);
+  font-weight: 500;
+}
+
+table.list tr[aria-current="true"] td {
+  background: var(--ui-muted);
+  font-weight: 600;
+}
+
+table.list td.actions {
+  text-align: end;
+  white-space: nowrap;
+}
+
+@media (max-width: 52rem) {
+  .split {
+    grid-template-columns: 1fr;
+  }
+}

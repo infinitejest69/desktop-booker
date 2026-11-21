@@ -1,8 +1,14 @@
 //! SQLite persistence for DesktopBooker: migrations, repository
-//! implementations, and backup/restore. Implemented from Phase 1.
+//! implementations and (later) backup/restore.
+//!
+//! Callers use the traits in [`repo`]; [`SqliteStore`] implements them.
 
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn placeholder() {}
-}
+mod error;
+pub mod repo;
+mod rows;
+mod seed;
+mod sqlite;
+
+pub use error::{StoreError, StoreResult};
+pub use repo::{FloorRepo, RoomTypeRepo, SettingsRepo, SpaceRepo};
+pub use sqlite::SqliteStore;

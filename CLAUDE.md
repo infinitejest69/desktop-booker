@@ -15,4 +15,6 @@ Offline hotel booking app (Rust + Tauri 2 + Svelte 5 + SQLite). Andy is **learni
 - Money is integer minor units. Stays are half-open `[check_in, check_out)`.
 - Every DB table has a UUID PK and `created_at`/`updated_at`/`updated_by`. All access goes through repository traits.
 - Enforce permissions in Rust commands, not just in the UI.
-- Before finishing: `cargo fmt --check && cargo clippy --workspace -- -D warnings && cargo test --workspace` and `pnpm vitest run`.
+- Browser/UI tests use Playwright: specs in `e2e/*.e2e.ts`, run with `pnpm test:e2e`.
+- After changing a `booker-core` type, run `pnpm gen:types`.
+- Before finishing: `cargo fmt --check && cargo clippy --workspace -- -D warnings && cargo test --workspace`, `pnpm check`, `pnpm test` and `pnpm test:e2e`.

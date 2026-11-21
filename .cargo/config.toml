@@ -1,0 +1,4 @@
+[env]
+# ts-rs writes generated TypeScript bindings here when running
+# `cargo test -p booker-core --features ts` (see `pnpm gen:types`).
+TS_RS_EXPORT_DIR = { value = "src/lib/bindings", relative = true }
