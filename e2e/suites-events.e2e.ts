@@ -102,6 +102,17 @@ test.describe("events", () => {
     await expect(page.getByRole("region", { name: "Event at a glance" })).toContainText("50 adults");
   });
 
+  test("a new event's room block follows its date", async ({ demoHotel: page }) => {
+    await nav(page, "Suites and events");
+    await page.getByRole("button", { name: "Events", exact: true }).click();
+    await page.getByRole("button", { name: "New event" }).click();
+    await page.getByLabel("First day").fill("2030-06-15");
+    await page.getByRole("switch", { name: "Hold a block of rooms" }).click();
+    await expect(page.getByLabel("Arrival")).toHaveValue("2030-06-15");
+    await expect(page.getByLabel("Departure")).toHaveValue("2030-06-16");
+    await expect(page.getByLabel("Release date")).toHaveValue("2030-05-18");
+  });
+
   test("the dashboard warns before held rooms are released", async ({ demoHotel: page }) => {
     const panel = page.getByRole("region", { name: "Events in the next two weeks" });
     await expect(panel.getByRole("note")).toContainText("1 held room for Hughes–Price wedding go back on sale");

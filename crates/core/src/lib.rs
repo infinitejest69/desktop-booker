@@ -8,6 +8,7 @@ pub mod audit;
 pub mod backups;
 pub mod booking;
 pub mod dates;
+pub mod demo;
 pub mod email;
 pub mod events;
 pub mod folio;
@@ -36,6 +37,7 @@ pub use booking::{
     validate_guest,
 };
 pub use dates::{DateRange, MAX_NIGHTS, iso_weekday};
+pub use demo::{DEMO_SEED, DemoAccount, DemoEvent, DemoHotel, DemoStay, demo_hotel};
 pub use email::{
     EmailKind, EmailLogEntry, EmailSettings, EmailTemplate, PLACEHOLDERS, booking_values, fill,
     looks_like_email, validate_email_settings,

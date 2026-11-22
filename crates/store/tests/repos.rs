@@ -262,7 +262,7 @@ async fn seed_demo_builds_a_hotel_once() {
     assert!(!s.seed_demo().await.unwrap(), "second call is a no-op");
 
     assert_eq!(s.list_floors().await.unwrap().len(), 3);
-    assert_eq!(s.list_room_types().await.unwrap().len(), 4);
+    assert_eq!(s.list_room_types().await.unwrap().len(), 6);
     let spaces = s.list_spaces(None).await.unwrap();
     let rooms = spaces.iter().filter(|x| x.kind == SpaceKind::Room).count();
     let suites = spaces.iter().filter(|x| x.kind == SpaceKind::Suite).count();

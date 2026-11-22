@@ -21,3 +21,9 @@ lto = true
 opt-level = 3
 panic = "abort"
 strip = true
+
+# Build dependencies (SQLite, sqlx, Tauri…) optimised even in debug builds.
+# Our own crates stay quick to rebuild, but database-heavy work such as
+# loading the demo hotel runs faster in `pnpm tauri dev`.
+[profile.dev.package."*"]
+opt-level = 2

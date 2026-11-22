@@ -17,7 +17,7 @@
 - [ ] **Review alert:** a small one-line widget that says when a new review has been left on Google or Tripadvisor.
 
 ### Demo data
-- [ ] **Richer demo hotel:** many more guests, bookings across past and future months (all statuses and sources), events and suite hire, invoices and payments, housekeeping history. Enough to make reports, the calendar and the dashboard look realistic.
+- [x] *Moved to Phase 11* (2026-11-22): **Richer demo hotel:** many more guests, bookings across past and future months (all statuses and sources), events and suite hire, invoices and payments, housekeeping history. Enough to make reports, the calendar and the dashboard look realistic.
 
 ## Open questions (answer before starting)
 - **Review alert:** the app is offline-first, and both sites need an online account to read reviews. Google needs the Business Profile API (OAuth sign-in and Google's approval). Tripadvisor's Content API needs a partner key and limits what can be shown. A simpler option is to check the review email notifications in the hotel's Gmail, which the app already uses for sending. Needs an ADR.

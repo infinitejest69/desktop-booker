@@ -159,6 +159,14 @@
           onValueChange={(v) => {
             if (!v) return;
             if (endDate < v) endDate = v;
+            // A block not saved yet keeps in step with the event: moving
+            // the first day moves its arrival, departure and release date.
+            if (!block) {
+              const by = daysBetween(startDate, v);
+              blockIn = addDays(blockIn, by);
+              blockOut = addDays(blockOut, by);
+              blockRelease = addDays(blockRelease, by);
+            }
             startDate = v;
           }}
           required

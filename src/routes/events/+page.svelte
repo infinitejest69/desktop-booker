@@ -30,16 +30,6 @@
     void load(showPast);
   });
 
-  async function loadDemo() {
-    try {
-      if (await api.seedDemoData()) toast.success("Demo events added");
-      else toast.info("Nothing to add: events already exist, or the demo suites are missing");
-      await load(showPast);
-    } catch (error) {
-      toast.error("Couldn't add demo events", { description: errorMessage(error) });
-    }
-  }
-
   function dates(e: EventListItem): string {
     const opts: Intl.DateTimeFormatOptions = { weekday: "short", day: "numeric", month: "short", year: "numeric" };
     return e.start_date === e.end_date
@@ -93,12 +83,6 @@
   {:else if loaded}
     <div class="panel stack" style="max-width: 36rem">
       <p style="margin: 0">{showPast ? "No events yet." : "No events coming up."}</p>
-      {#if session.can("manage_setup")}
-        <p class="muted" style="margin: 0">
-          Add a demo wedding, conference and club dinner to the demo hotel to see how events work.
-        </p>
-        <div><Button onclick={loadDemo}>Load demo events</Button></div>
-      {/if}
     </div>
   {/if}
 </div>

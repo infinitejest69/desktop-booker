@@ -5,15 +5,19 @@ mod commands;
 mod error;
 mod session;
 
+pub use session::Session;
+
 use booker_store::{BackupRepo, EventRepo, SettingsRepo, SqliteStore};
-use session::Session;
 use tauri::{Manager, RunEvent};
 
 /// Where the live database file is, for restoring a backup over it.
 pub struct DbPath(pub std::path::PathBuf);
 
 /// The folder backups go to: the chosen one, or `<app data>/backups`.
-pub fn backup_dir(app: &tauri::AppHandle, folder: &str) -> std::path::PathBuf {
+pub fn backup_dir<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    folder: &str,
+) -> std::path::PathBuf {
     if folder.trim().is_empty() {
         app.path()
             .app_data_dir()
@@ -44,6 +48,100 @@ fn backup_if_due(app: &tauri::AppHandle) {
     if let Err(e) = tauri::async_runtime::block_on(run) {
         eprintln!("[desktop-booker] scheduled backup failed: {e}");
     }
+}
+
+/// Every command the app offers. Generic over the Tauri runtime so the
+/// dev-only demo bridge (`src/bin/demo_bridge.rs`) serves exactly the same
+/// commands as the app.
+pub fn invoke_handler<R: tauri::Runtime>()
+-> impl Fn(tauri::ipc::Invoke<R>) -> bool + Send + Sync + 'static {
+    tauri::generate_handler![
+        commands::app_version,
+        commands::session_status,
+        commands::create_first_admin,
+        commands::login,
+        commands::logout,
+        commands::list_users,
+        commands::save_user,
+        commands::list_audit,
+        commands::get_settings,
+        commands::save_settings,
+        commands::list_floors,
+        commands::save_floor,
+        commands::delete_floor,
+        commands::list_room_types,
+        commands::save_room_type,
+        commands::delete_room_type,
+        commands::list_spaces,
+        commands::save_space,
+        commands::delete_space,
+        commands::list_rate_rules,
+        commands::save_rate_rule,
+        commands::delete_rate_rule,
+        commands::list_board_options,
+        commands::save_board_option,
+        commands::delete_board_option,
+        commands::search_guests,
+        commands::quote_room,
+        commands::free_rooms,
+        commands::chart,
+        commands::get_booking,
+        commands::save_booking,
+        commands::set_booking_status,
+        commands::search_bookings,
+        commands::seed_demo_data,
+        commands::get_suite_rates,
+        commands::save_suite_rates,
+        commands::list_suite_bookings,
+        commands::get_suite_booking,
+        commands::save_suite_booking,
+        commands::set_suite_booking_status,
+        commands::list_events,
+        commands::get_event,
+        commands::save_event,
+        commands::list_tax_rates,
+        commands::save_tax_rate,
+        commands::get_invoice_settings,
+        commands::save_invoice_settings,
+        commands::get_folio,
+        commands::add_charge,
+        commands::remove_charge,
+        commands::add_payment,
+        commands::issue_invoice,
+        commands::get_invoice,
+        commands::list_housekeeping,
+        commands::set_housekeeping,
+        commands::set_floor_housekeeping,
+        commands::occupancy_report,
+        commands::revenue_report,
+        commands::room_kpis,
+        commands::report_csv,
+        commands::guest_profile,
+        commands::erase_guest,
+        commands::merge_guests,
+        commands::backup_status,
+        commands::save_backup_settings,
+        commands::backup_now,
+        commands::restore_backup,
+        commands::get_email_setup,
+        commands::save_email_settings,
+        commands::save_email_template,
+        commands::send_test_email,
+        commands::send_booking_email,
+        commands::list_email_log,
+        commands::save_report_csv,
+        commands::report_catalogue,
+        commands::run_report,
+        commands::custom_report_csv,
+        commands::save_custom_report_csv,
+        commands::list_saved_reports,
+        commands::save_saved_report,
+        commands::delete_saved_report,
+        commands::list_dashboards,
+        commands::save_dashboard,
+        commands::delete_dashboard,
+        commands::save_guest_data,
+    ]
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -80,93 +178,7 @@ pub fn run() {
             });
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![
-            commands::app_version,
-            commands::session_status,
-            commands::create_first_admin,
-            commands::login,
-            commands::logout,
-            commands::list_users,
-            commands::save_user,
-            commands::list_audit,
-            commands::get_settings,
-            commands::save_settings,
-            commands::list_floors,
-            commands::save_floor,
-            commands::delete_floor,
-            commands::list_room_types,
-            commands::save_room_type,
-            commands::delete_room_type,
-            commands::list_spaces,
-            commands::save_space,
-            commands::delete_space,
-            commands::list_rate_rules,
-            commands::save_rate_rule,
-            commands::delete_rate_rule,
-            commands::list_board_options,
-            commands::save_board_option,
-            commands::delete_board_option,
-            commands::search_guests,
-            commands::quote_room,
-            commands::free_rooms,
-            commands::chart,
-            commands::get_booking,
-            commands::save_booking,
-            commands::set_booking_status,
-            commands::search_bookings,
-            commands::seed_demo_data,
-            commands::get_suite_rates,
-            commands::save_suite_rates,
-            commands::list_suite_bookings,
-            commands::get_suite_booking,
-            commands::save_suite_booking,
-            commands::set_suite_booking_status,
-            commands::list_events,
-            commands::get_event,
-            commands::save_event,
-            commands::list_tax_rates,
-            commands::save_tax_rate,
-            commands::get_invoice_settings,
-            commands::save_invoice_settings,
-            commands::get_folio,
-            commands::add_charge,
-            commands::remove_charge,
-            commands::add_payment,
-            commands::issue_invoice,
-            commands::get_invoice,
-            commands::list_housekeeping,
-            commands::set_housekeeping,
-            commands::set_floor_housekeeping,
-            commands::occupancy_report,
-            commands::revenue_report,
-            commands::room_kpis,
-            commands::report_csv,
-            commands::guest_profile,
-            commands::erase_guest,
-            commands::merge_guests,
-            commands::backup_status,
-            commands::save_backup_settings,
-            commands::backup_now,
-            commands::restore_backup,
-            commands::get_email_setup,
-            commands::save_email_settings,
-            commands::save_email_template,
-            commands::send_test_email,
-            commands::send_booking_email,
-            commands::list_email_log,
-            commands::save_report_csv,
-            commands::report_catalogue,
-            commands::run_report,
-            commands::custom_report_csv,
-            commands::save_custom_report_csv,
-            commands::list_saved_reports,
-            commands::save_saved_report,
-            commands::delete_saved_report,
-            commands::list_dashboards,
-            commands::save_dashboard,
-            commands::delete_dashboard,
-            commands::save_guest_data,
-        ])
+        .invoke_handler(invoke_handler())
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         // `run` takes a closure called for every app event; we only care about exit.

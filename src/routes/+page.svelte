@@ -94,12 +94,17 @@
       .catch(() => {});
   });
 
+  let loadingDemo = $state(false);
+
   async function loadDemo() {
+    loadingDemo = true;
     try {
-      if (await api.seedDemoData()) toast.success("Demo hotel loaded");
+      if (await api.seedDemoData()) toast.success("Welcome to The Lanterns Hotel, Kelmouth");
       await load();
     } catch (error) {
       toast.error("Couldn't load demo data", { description: errorMessage(error) });
+    } finally {
+      loadingDemo = false;
     }
   }
 
@@ -153,7 +158,9 @@
           Start by setting up your hotel under My hotel, or load a demo hotel to look around.
         </p>
         <div class="row">
-          <Button data-variant="solid" onclick={loadDemo}>Load demo hotel</Button>
+          <Button data-variant="solid" onclick={loadDemo} disabled={loadingDemo} aria-busy={loadingDemo}>
+            {loadingDemo ? "Loading the demo hotel…" : "Load demo hotel"}
+          </Button>
           <a class="link-button" href="/setup/property">Set up my hotel</a>
         </div>
       {:else}

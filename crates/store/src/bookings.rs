@@ -460,17 +460,54 @@ pub(crate) async fn upsert_guest(tx: &mut SqliteConnection, guest: &Guest) -> St
 }
 
 /// Checks, prices and writes a booking inside the caller's transaction.
+/// What pricing and checking a booking needs from the rest of the hotel.
+/// Loaded once per save, or once for a whole batch (the demo hotel).
+pub(crate) struct BookingContext {
+    spaces: Vec<booker_core::Space>,
+    room_types: Vec<booker_core::RoomType>,
+    rules: Vec<RateRule>,
+    boards: Vec<BoardOption>,
+    parking_price: Money,
+}
+
+impl BookingContext {
+    pub(crate) async fn load(tx: &mut SqliteConnection) -> StoreResult<Self> {
+        Ok(Self {
+            spaces: load_spaces(tx, None).await?,
+            room_types: load_room_types(tx).await?,
+            rules: load_rate_rules(tx).await?,
+            boards: load_boards(tx).await?,
+            parking_price: load_parking_price(tx).await?,
+        })
+    }
+}
+
 pub(crate) async fn write_booking(
     tx: &mut SqliteConnection,
     booking: &Booking,
     guest: &Guest,
 ) -> StoreResult<()> {
+    let context = BookingContext::load(tx).await?;
+    write_booking_with(tx, &context, booking, guest).await
+}
+
+/// Saves a booking after every rule passes, using an already-loaded context.
+pub(crate) async fn write_booking_with(
+    tx: &mut SqliteConnection,
+    context: &BookingContext,
+    booking: &Booking,
+    guest: &Guest,
+) -> StoreResult<()> {
     validate_guest(guest)?;
-    let spaces = load_spaces(tx, None).await?;
-    let room_types = load_room_types(tx).await?;
-    let rules = load_rate_rules(tx).await?;
-    let boards = load_boards(tx).await?;
-    let parking_price = load_parking_price(tx).await?;
+    // Borrow the context's fields under short names (no copying).
+    let BookingContext {
+        spaces,
+        room_types,
+        rules,
+        boards,
+        parking_price,
+    } = context;
+    let parking_price = *parking_price;
 
     let from = booking.rooms.iter().map(|r| r.stay.start).min();
     let to = booking.rooms.iter().map(|r| r.stay.end).max();
@@ -478,7 +515,7 @@ pub(crate) async fn write_booking(
         (Some(from), Some(to)) => load_occupancy(tx, from, to).await?,
         _ => Vec::new(),
     };
-    validate_booking(booking, &spaces, &room_types, &occupancy)?;
+    validate_booking(booking, spaces, room_types, &occupancy)?;
     for room in &booking.rooms {
         if let Some(b) = room.board_option_id
             && !boards.iter().any(|x| x.id == b)
@@ -561,7 +598,7 @@ pub(crate) async fn write_booking(
                     .and_then(|b| boards.iter().find(|x| x.id == b));
                 quote_stay(
                     room_type,
-                    &rules,
+                    rules,
                     board,
                     room.stay,
                     room.adults,

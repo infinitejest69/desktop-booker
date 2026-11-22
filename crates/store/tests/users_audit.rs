@@ -136,14 +136,14 @@ async fn a_rejected_change_leaves_no_log_entry() {
 }
 
 #[tokio::test]
-async fn demo_bookings_are_in_the_log() {
+async fn loading_the_demo_is_in_the_log() {
     let s = store().await;
     s.seed_demo().await.unwrap();
-    let bookings = s.list_audit(None, Some("booking"), 1000).await.unwrap();
+    let setup = s.list_audit(None, Some("setup"), 10).await.unwrap();
     assert!(
-        bookings
+        setup
             .iter()
-            .any(|e| e.summary.starts_with("Made booking "))
+            .any(|e| e.summary.starts_with("Loaded the demo hotel"))
     );
     assert!(
         s.list_audit(None, Some("nothing"), 10)

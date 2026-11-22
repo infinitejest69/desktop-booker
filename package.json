@@ -17,7 +17,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "gen:types": "cargo test -p booker-core --features ts export_bindings",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "screenshots": "playwright test -c demo/playwright.config.ts --project=screenshots",
+    "videos": "playwright test -c demo/playwright.config.ts --project=videos"
   },
   "private": true,
   "license": "UNLICENSED",

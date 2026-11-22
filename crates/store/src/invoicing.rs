@@ -286,7 +286,7 @@ async fn basis(
 }
 
 /// The folio and the billing address to print on an invoice.
-async fn load_folio(
+pub(crate) async fn load_folio(
     conn: &mut SqliteConnection,
     owner: FolioOwner,
 ) -> StoreResult<(Folio, String)> {
@@ -304,6 +304,111 @@ async fn load_folio(
         invoices: load_invoice_list(conn, owner).await?,
     });
     Ok((folio, b.bill_address))
+}
+
+/// Adds an extra to a bill inside the caller's transaction (no audit entry).
+pub(crate) async fn insert_charge(
+    tx: &mut SqliteConnection,
+    owner: FolioOwner,
+    charge: &Charge,
+) -> StoreResult<()> {
+    let (kind, id) = owner.parts();
+    sqlx::query(
+        "INSERT INTO charges (id, owner_kind, owner_id, date, category, description,
+                              quantity, unit_price, tax_basis_points)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    )
+    .bind(charge.id.to_string())
+    .bind(kind)
+    .bind(&id)
+    .bind(charge.date.to_string())
+    .bind(category_str(charge.category))
+    .bind(charge.description.trim())
+    .bind(i64::from(charge.quantity))
+    .bind(charge.unit_price.0)
+    .bind(i64::from(charge.tax_basis_points))
+    .execute(&mut *tx)
+    .await?;
+    Ok(())
+}
+
+/// Records a payment inside the caller's transaction (no audit entry).
+pub(crate) async fn insert_payment(
+    tx: &mut SqliteConnection,
+    owner: FolioOwner,
+    payment: &Payment,
+) -> StoreResult<()> {
+    let (kind, id) = owner.parts();
+    sqlx::query(
+        "INSERT INTO payments (id, owner_kind, owner_id, date, amount, method, is_deposit,
+                               reference)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+    )
+    .bind(payment.id.to_string())
+    .bind(kind)
+    .bind(&id)
+    .bind(payment.date.to_string())
+    .bind(payment.amount.0)
+    .bind(payment.method.as_str())
+    .bind(payment.is_deposit)
+    .bind(payment.reference.trim())
+    .execute(&mut *tx)
+    .await?;
+    Ok(())
+}
+
+/// Freezes a folio as the next-numbered invoice inside the caller's
+/// transaction (no audit entry).
+pub(crate) async fn insert_invoice(
+    tx: &mut SqliteConnection,
+    owner: FolioOwner,
+    issued_on: NaiveDate,
+) -> StoreResult<Invoice> {
+    let settings = load_settings(&mut *tx).await?;
+    let (folio, bill_address) = load_folio(&mut *tx, owner).await?;
+    if folio.lines.is_empty() {
+        return Err(ValidationError::Empty { field: "The folio" }.into());
+    }
+    // Taking the number inside this transaction means a failed save
+    // gives it back, so numbers never skip.
+    let n: i64 = sqlx::query_scalar(
+        "INSERT INTO invoice_counter (id, last_number) VALUES (1, 1)
+             ON CONFLICT (id) DO UPDATE SET last_number = last_number + 1
+             RETURNING last_number",
+    )
+    .fetch_one(&mut *tx)
+    .await?;
+    let invoice = Invoice {
+        id: InvoiceId::new(),
+        number: format_invoice_number(&settings.prefix, int(n, "invoice_counter")?),
+        owner,
+        issued_on,
+        bill_to: folio.bill_to,
+        bill_address,
+        title: folio.title,
+        lines: folio.lines,
+        payments: folio.payments,
+        totals: folio.totals,
+        prices_include_tax: folio.prices_include_tax,
+        footer: settings.footer,
+    };
+    let document = serde_json::to_string(&invoice)
+        .map_err(|e| StoreError::Corrupt(format!("can't save invoice: {e}")))?;
+    let (kind, id) = owner.parts();
+    sqlx::query(
+        "INSERT INTO invoices (id, number, owner_kind, owner_id, issued_on, gross, document)
+             VALUES (?, ?, ?, ?, ?, ?, ?)",
+    )
+    .bind(invoice.id.to_string())
+    .bind(&invoice.number)
+    .bind(kind)
+    .bind(id)
+    .bind(issued_on.to_string())
+    .bind(invoice.totals.gross.0)
+    .bind(document)
+    .execute(&mut *tx)
+    .await?;
+    Ok(invoice)
 }
 
 /// The owner a stored charge belongs to, from its two columns.
@@ -423,23 +528,7 @@ impl InvoiceRepo for SqliteStore {
         let mut tx = self.pool.begin().await?;
         // Fails with NotFound if the booking or event doesn't exist.
         let (before, _) = load_folio(&mut tx, owner).await?;
-        let (kind, id) = owner.parts();
-        sqlx::query(
-            "INSERT INTO charges (id, owner_kind, owner_id, date, category, description,
-                                  quantity, unit_price, tax_basis_points)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        )
-        .bind(charge.id.to_string())
-        .bind(kind)
-        .bind(&id)
-        .bind(charge.date.to_string())
-        .bind(category_str(charge.category))
-        .bind(charge.description.trim())
-        .bind(i64::from(charge.quantity))
-        .bind(charge.unit_price.0)
-        .bind(i64::from(charge.tax_basis_points))
-        .execute(&mut *tx)
-        .await?;
+        insert_charge(&mut tx, owner, charge).await?;
         record(
             &mut tx,
             Change {
@@ -502,22 +591,7 @@ impl InvoiceRepo for SqliteStore {
         let mut tx = self.pool.begin().await?;
         let (before, _) = load_folio(&mut tx, owner).await?;
         validate_payment(payment, before.totals.paid)?;
-        let (kind, id) = owner.parts();
-        sqlx::query(
-            "INSERT INTO payments (id, owner_kind, owner_id, date, amount, method, is_deposit,
-                                   reference)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-        )
-        .bind(payment.id.to_string())
-        .bind(kind)
-        .bind(&id)
-        .bind(payment.date.to_string())
-        .bind(payment.amount.0)
-        .bind(payment.method.as_str())
-        .bind(payment.is_deposit)
-        .bind(payment.reference.trim())
-        .execute(&mut *tx)
-        .await?;
+        insert_payment(&mut tx, owner, payment).await?;
         let what = if payment.amount.0 < 0 {
             "Refunded"
         } else if payment.is_deposit {
@@ -550,50 +624,7 @@ impl InvoiceRepo for SqliteStore {
 
     async fn issue_invoice(&self, owner: FolioOwner, issued_on: NaiveDate) -> StoreResult<Invoice> {
         let mut tx = self.pool.begin().await?;
-        let settings = load_settings(&mut tx).await?;
-        let (folio, bill_address) = load_folio(&mut tx, owner).await?;
-        if folio.lines.is_empty() {
-            return Err(ValidationError::Empty { field: "The folio" }.into());
-        }
-        // Taking the number inside this transaction means a failed save
-        // gives it back, so numbers never skip.
-        let n: i64 = sqlx::query_scalar(
-            "INSERT INTO invoice_counter (id, last_number) VALUES (1, 1)
-             ON CONFLICT (id) DO UPDATE SET last_number = last_number + 1
-             RETURNING last_number",
-        )
-        .fetch_one(&mut *tx)
-        .await?;
-        let invoice = Invoice {
-            id: InvoiceId::new(),
-            number: format_invoice_number(&settings.prefix, int(n, "invoice_counter")?),
-            owner,
-            issued_on,
-            bill_to: folio.bill_to,
-            bill_address,
-            title: folio.title,
-            lines: folio.lines,
-            payments: folio.payments,
-            totals: folio.totals,
-            prices_include_tax: folio.prices_include_tax,
-            footer: settings.footer,
-        };
-        let document = serde_json::to_string(&invoice)
-            .map_err(|e| StoreError::Corrupt(format!("can't save invoice: {e}")))?;
-        let (kind, id) = owner.parts();
-        sqlx::query(
-            "INSERT INTO invoices (id, number, owner_kind, owner_id, issued_on, gross, document)
-             VALUES (?, ?, ?, ?, ?, ?, ?)",
-        )
-        .bind(invoice.id.to_string())
-        .bind(&invoice.number)
-        .bind(kind)
-        .bind(id)
-        .bind(issued_on.to_string())
-        .bind(invoice.totals.gross.0)
-        .bind(document)
-        .execute(&mut *tx)
-        .await?;
+        let invoice = insert_invoice(&mut tx, owner, issued_on).await?;
         record(
             &mut tx,
             Change {

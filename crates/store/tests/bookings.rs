@@ -438,55 +438,134 @@ async fn chart_and_search_show_each_rooms_board() {
 }
 
 #[tokio::test]
-async fn seed_demo_includes_rates_and_bookings() {
+async fn seed_demo_loads_the_lanterns_hotel() {
+    use booker_core::{DEMO_SEED, FolioOwner, demo_hotel};
+    use booker_store::{EventRepo, InvoiceRepo, OperationsRepo};
     let store = SqliteStore::open_in_memory().await.unwrap();
-    store.seed_demo().await.unwrap();
-    assert_eq!(store.list_board_options().await.unwrap().len(), 3);
-    assert_eq!(store.list_rate_rules().await.unwrap().len(), 4);
+    let started = std::time::Instant::now();
+    assert!(store.seed_demo().await.unwrap());
+    eprintln!("demo hotel loaded in {:?}", started.elapsed());
     let today = chrono::Local::now().date_naive();
-    let from = today - chrono::Days::new(14);
-    let chart = store
-        .chart(from, today + chrono::Days::new(46))
+    let plan = demo_hotel(DEMO_SEED, today);
+
+    assert_eq!(
+        store.get_settings().await.unwrap().hotel_name,
+        "The Lanterns Hotel"
+    );
+    assert_eq!(store.list_board_options().await.unwrap().len(), 3);
+    assert_eq!(
+        store.list_rate_rules().await.unwrap().len(),
+        plan.rate_rules.len()
+    );
+
+    // Every planned stay was saved: no double bookings anywhere.
+    let first = today - chrono::Days::new(booker_core::demo::HISTORY_DAYS);
+    let last = today + chrono::Days::new(booker_core::demo::FUTURE_DAYS + 30);
+    let chart = store.chart(first, last).await.unwrap();
+    let planned_rooms: usize = plan
+        .stays
+        .iter()
+        .filter(|s| s.booking.status.holds_rooms())
+        .map(|s| s.booking.rooms.len())
+        .sum();
+    assert!(
+        chart.len() >= planned_rooms,
+        "{} of {planned_rooms}",
+        chart.len()
+    );
+    let around_today = store
+        .chart(today, today + chrono::Days::new(1))
         .await
         .unwrap();
-    assert!(chart.len() >= 40, "a busy demo hotel, got {}", chart.len());
-    let statuses: std::collections::HashSet<_> = chart.iter().map(|e| e.status).collect();
-    for s in [
-        BookingStatus::CheckedOut,
-        BookingStatus::CheckedIn,
-        BookingStatus::Confirmed,
-    ] {
-        assert!(statuses.contains(&s), "demo has {s:?} bookings");
-    }
-    assert!(store.search_bookings("").await.unwrap().len() >= 20);
-    // Demo events: a wedding with suites, sittings and held rooms.
-    use booker_store::EventRepo;
-    let events = store.list_events(today).await.unwrap();
-    assert_eq!(events.len(), 3);
-    let wedding = events.iter().find(|e| e.name.contains("wedding")).unwrap();
-    let detail = store.get_event(wedding.id).await.unwrap();
-    assert_eq!(detail.suites.len(), 2);
-    assert_eq!(detail.event.sittings.len(), 2);
-    assert!(detail.held_rooms > 0, "the wedding holds some rooms");
-    // Demo VAT: rooms are taxed at 20% on the folio.
-    use booker_store::InvoiceRepo;
-    assert_eq!(store.list_tax_rates().await.unwrap().len(), 3);
+    let statuses: std::collections::HashSet<_> = around_today.iter().map(|e| e.status).collect();
+    assert!(statuses.contains(&BookingStatus::CheckedIn), "{statuses:?}");
+
+    // Busy summers, quiet Januaries.
+    let month = |y: i32, m: u32| {
+        let start = NaiveDate::from_ymd_opt(y, m, 1).unwrap();
+        let end = if m == 12 {
+            NaiveDate::from_ymd_opt(y + 1, 1, 1).unwrap()
+        } else {
+            NaiveDate::from_ymd_opt(y, m + 1, 1).unwrap()
+        };
+        DateRange::new(start, end).unwrap()
+    };
+    let august = if today >= NaiveDate::from_ymd_opt(today.year(), 9, 1).unwrap() {
+        month(today.year(), 8)
+    } else {
+        month(today.year() - 1, 8)
+    };
+    let january = if today >= NaiveDate::from_ymd_opt(today.year(), 2, 1).unwrap() {
+        month(today.year(), 1)
+    } else {
+        month(today.year() - 1, 1)
+    };
+    let sold = |days: Vec<booker_core::DayOccupancy>| days.iter().map(|d| d.occupied).sum::<u32>();
+    let aug = sold(store.occupancy_report(august).await.unwrap());
+    let jan = sold(store.occupancy_report(january).await.unwrap());
+    assert!(aug > jan * 2, "August {aug} vs January {jan}");
+
+    // A stay that's over has been paid in full; many have invoices.
+    let paid = plan
+        .stays
+        .iter()
+        .find(|s| s.account.settle.is_some() && s.account.invoice_on.is_some())
+        .unwrap();
     let folio = store
-        .get_folio(booker_core::FolioOwner::Booking(chart[0].booking_id))
+        .get_folio(FolioOwner::Booking(paid.booking.id))
         .await
         .unwrap();
+    assert_eq!(folio.totals.balance, Money::ZERO);
+    assert_eq!(folio.invoices.len(), 1);
     assert!(
         folio
             .lines
             .iter()
             .any(|l| l.charge.tax_basis_points == 2000)
     );
-    // Seeding events again does nothing.
-    assert!(!store.seed_demo_events().await.unwrap());
-    // Demo stays come with a mix of boards, including room only.
-    let boards: std::collections::HashSet<_> = chart.iter().map(|e| e.board.clone()).collect();
-    assert!(boards.contains(&Some("Bed & breakfast".into())));
-    assert!(boards.contains(&None));
+
+    // A coach tour at its group rate is paid in full by the operator.
+    let tour = plan
+        .stays
+        .iter()
+        .find(|s| s.booking.notes.contains(" tour: ") && s.account.settle.is_some())
+        .unwrap();
+    let folio = store
+        .get_folio(FolioOwner::Booking(tour.booking.id))
+        .await
+        .unwrap();
+    assert_eq!(folio.totals.balance, Money::ZERO);
+    assert!(folio.totals.gross > Money::ZERO);
+
+    // References follow the year the booking was made.
+    let booked = store.get_booking(paid.booking.id).await.unwrap();
+    assert!(
+        booked
+            .booking
+            .reference
+            .starts_with(&paid.booked_on.year().to_string()),
+        "{} booked {}",
+        booked.booking.reference,
+        paid.booked_on
+    );
+
+    // Events, with held rooms for weddings far enough ahead.
+    let events = store.list_events(NaiveDate::MIN).await.unwrap();
+    assert_eq!(events.len(), plan.events.len());
+    if let Some(blocked) = plan.events.iter().find(|e| e.event.room_block.is_some()) {
+        let detail = store.get_event(blocked.event.id).await.unwrap();
+        assert!(detail.held_rooms > 0, "the wedding holds rooms");
+    }
+
+    // Housekeeping has been round some rooms this morning.
+    let hk = store.list_housekeeping(today).await.unwrap();
+    assert!(
+        hk.iter()
+            .any(|r| r.status == booker_core::HousekeepingStatus::Dirty)
+    );
+
+    // Loading again does nothing.
+    assert!(!store.seed_demo().await.unwrap());
 }
 
 #[tokio::test]

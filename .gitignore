@@ -26,3 +26,6 @@ Thumbs.db
 # Playwright
 /test-results/
 /playwright-report/
+
+# Demo videos (uploaded to YouTube, not kept in the repo)
+/videos/out/

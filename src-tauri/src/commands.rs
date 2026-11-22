@@ -482,11 +482,7 @@ pub async fn search_bookings(
 #[tauri::command]
 pub async fn seed_demo_data(store: Store<'_>, session: Sess<'_>) -> CmdResult<bool> {
     session.require(&store, Permission::ManageSetup)?;
-    // A new demo hotel comes with events; an existing one gets them added.
-    let hotel = store.seed_demo().await?;
-    let events = store.seed_demo_events().await?;
-    let invoicing = store.seed_demo_invoicing().await?;
-    Ok(hotel || events || invoicing)
+    Ok(store.seed_demo().await?)
 }
 
 // ---------------------------------------------------------------------------
@@ -937,9 +933,9 @@ pub async fn erase_guest(store: Store<'_>, session: Sess<'_>, id: GuestId) -> Cm
 // Backups
 // ---------------------------------------------------------------------------
 
-async fn status_of(
+async fn status_of<R: tauri::Runtime>(
     store: &SqliteStore,
-    app: &tauri::AppHandle,
+    app: &tauri::AppHandle<R>,
 ) -> CmdResult<booker_core::BackupStatus> {
     use booker_store::BackupRepo;
     let settings = store.get_backup_settings().await?;
@@ -960,8 +956,8 @@ async fn status_of(
 }
 
 #[tauri::command]
-pub async fn backup_status(
-    app: tauri::AppHandle,
+pub async fn backup_status<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
     store: Store<'_>,
     session: Sess<'_>,
 ) -> CmdResult<booker_core::BackupStatus> {
@@ -970,8 +966,8 @@ pub async fn backup_status(
 }
 
 #[tauri::command]
-pub async fn save_backup_settings(
-    app: tauri::AppHandle,
+pub async fn save_backup_settings<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
     store: Store<'_>,
     session: Sess<'_>,
     settings: booker_core::BackupSettings,
@@ -989,8 +985,8 @@ pub async fn save_backup_settings(
 }
 
 #[tauri::command]
-pub async fn backup_now(
-    app: tauri::AppHandle,
+pub async fn backup_now<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
     store: Store<'_>,
     session: Sess<'_>,
 ) -> CmdResult<booker_core::BackupStatus> {
@@ -1006,8 +1002,8 @@ pub async fn backup_now(
 /// Replaces the live database with a backup and restarts the app. A
 /// snapshot of the current data is taken first, so a restore can be undone.
 #[tauri::command]
-pub async fn restore_backup(
-    app: tauri::AppHandle,
+pub async fn restore_backup<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
     store: Store<'_>,
     session: Sess<'_>,
     db: State<'_, crate::DbPath>,
@@ -1224,8 +1220,8 @@ pub async fn list_email_log(
 // ---------------------------------------------------------------------------
 
 /// Asks where to save, then writes the text there. `None` if cancelled.
-async fn save_with_dialog(
-    app: &tauri::AppHandle,
+async fn save_with_dialog<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
     file_name: String,
     filter: (&'static str, &'static str),
     contents: String,
@@ -1251,8 +1247,8 @@ async fn save_with_dialog(
 }
 
 #[tauri::command]
-pub async fn save_report_csv(
-    app: tauri::AppHandle,
+pub async fn save_report_csv<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
     store: Store<'_>,
     session: Sess<'_>,
     report: String,
@@ -1265,8 +1261,8 @@ pub async fn save_report_csv(
 
 /// Everything held about a guest, as JSON, for a subject access request.
 #[tauri::command]
-pub async fn save_guest_data(
-    app: tauri::AppHandle,
+pub async fn save_guest_data<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
     store: Store<'_>,
     session: Sess<'_>,
     id: GuestId,
@@ -1334,8 +1330,8 @@ pub async fn custom_report_csv(
 }
 
 #[tauri::command]
-pub async fn save_custom_report_csv(
-    app: tauri::AppHandle,
+pub async fn save_custom_report_csv<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
     store: Store<'_>,
     session: Sess<'_>,
     spec: ReportSpec,
