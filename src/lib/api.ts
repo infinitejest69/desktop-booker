@@ -145,7 +145,8 @@ export const api = {
     adults: number,
     children: number,
     boardOptionId: BoardOptionId | null,
-  ) => call<StayQuote>("quote_room", { spaceId, stay, adults, children, boardOptionId }),
+    cars = 0,
+  ) => call<StayQuote>("quote_room", { spaceId, stay, adults, children, boardOptionId, cars }),
   freeRooms: (stay: DateRange, ignoreBooking: BookingId | null = null) =>
     call<SpaceId[]>("free_rooms", { stay, ignoreBooking }),
   chart: (from: string, to: string) => call<ChartEntry[]>("chart", { from, to }),

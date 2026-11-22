@@ -11,10 +11,10 @@ Built with **Rust + Tauri 2** and a **SvelteKit 3 (Svelte 5)** frontend. Runs on
 
 ## What's in it
 
-- **Dashboard:** today's arrivals, departures and events, a small plan of each floor, backup warnings.
-- **Bookings:** one menu item with two views: the **Calendar** (rooms × nights; click a free night to book, a booking to open it) and the **List** (search by reference, name or email).
-- **Function suites & events:** suite hire by the hour, events with catering sittings and room blocks.
-- **Floor plan and housekeeping:** each floor as a plan or as cards; availability, dirty / clean / ready, whole floors at once.
+- **Dashboard:** one page: a small plan of each floor, today's arrivals and departures, events coming up, backup warnings.
+- **Bookings:** one menu item with two views: the **Calendar** (rooms × nights; click a free night to book, a booking to open it) and the **List** (search by reference, name or email; searching from the calendar opens the list). Each room on a booking can ask for parking (cars × the nightly parking price set under Rates).
+- **Suites and events:** one menu item with two views: the suite diary (hire by the hour) and the events list (catering sittings, room blocks).
+- **Rooms:** every floor in one list, as plans or cards; availability, dirty / clean / ready, whole floors at once; each room's features (wifi, pets allowed, accessible, smoking) as icons, and a *Room must have* filter when booking.
 - **Guests:** profiles, history, merging duplicates, data export.
 - **Invoices & payments**, **email** to guests through the hotel's Gmail.
 - **Admin only** (below the divider in the menu): **Reports** (occupancy, revenue, ADR & RevPAR, CSV) and **My hotel** (setup, rates, users, backups, audit log).

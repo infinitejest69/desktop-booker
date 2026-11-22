@@ -354,6 +354,8 @@ pub async fn search_guests(
         .await?)
 }
 
+// Tauri commands take each argument by name from the frontend, so a long list is expected.
+#[allow(clippy::too_many_arguments)]
 #[tauri::command]
 pub async fn quote_room(
     store: Store<'_>,
@@ -363,10 +365,11 @@ pub async fn quote_room(
     adults: u8,
     children: u8,
     board_option_id: Option<BoardOptionId>,
+    cars: u8,
 ) -> CmdResult<StayQuote> {
     let acting = session.require(&store, Permission::ViewHotel)?;
     Ok(acting
-        .quote_room(space_id, stay, adults, children, board_option_id)
+        .quote_room(space_id, stay, adults, children, board_option_id, cars)
         .await?)
 }
 

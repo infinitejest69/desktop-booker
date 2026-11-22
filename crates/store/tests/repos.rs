@@ -1,8 +1,8 @@
 //! Integration tests: each test gets its own fresh in-memory database.
 
 use booker_core::{
-    Floor, FloorId, GridRect, PropertySettings, RoomType, RoomTypeId, Space, SpaceId, SpaceKind,
-    SuiteCapacities, ValidationError,
+    Floor, FloorId, GridRect, PropertySettings, RoomFeature, RoomType, RoomTypeId, Space, SpaceId,
+    SpaceKind, SuiteCapacities, ValidationError,
 };
 use booker_store::{FloorRepo, RoomTypeRepo, SettingsRepo, SpaceRepo, SqliteStore, StoreError};
 
@@ -46,6 +46,7 @@ fn room(floor: &Floor, rt: &RoomType, name: &str, rect: GridRect) -> Space {
         suite_capacities: SuiteCapacities::default(),
         rect,
         out_of_service: false,
+        features: Vec::new(),
         notes: String::new(),
     }
 }
@@ -111,6 +112,38 @@ async fn room_type_codes_are_stored_uppercase() {
     assert_eq!(saved.len(), 1);
     assert_eq!(saved[0].code, "DBL");
     assert_eq!(saved[0].id, rt.id);
+}
+
+#[tokio::test]
+async fn room_features_are_saved_and_changed() {
+    let (s, f, rt) = with_floor_and_type().await;
+    let mut r = room(&f, &rt, "101", GridRect::new(0, 0, 3, 4));
+    r.features = vec![RoomFeature::Wifi, RoomFeature::Accessible];
+    s.save_space(&r).await.unwrap();
+    assert_eq!(s.list_spaces(None).await.unwrap(), vec![r.clone()]);
+
+    r.features = vec![RoomFeature::PetsAllowed];
+    s.save_space(&r).await.unwrap();
+    assert_eq!(
+        s.list_spaces(None).await.unwrap()[0].features,
+        vec![RoomFeature::PetsAllowed]
+    );
+}
+
+#[tokio::test]
+async fn a_suite_with_room_features_is_refused() {
+    let (s, f, rt) = with_floor_and_type().await;
+    let suite = Space {
+        kind: SpaceKind::Suite,
+        name: "Garden Suite".into(),
+        room_type_id: None,
+        features: vec![RoomFeature::Wifi],
+        ..room(&f, &rt, "", GridRect::new(0, 0, 4, 4))
+    };
+    assert!(matches!(
+        s.save_space(&suite).await,
+        Err(StoreError::Validation(ValidationError::SuiteHasFeatures))
+    ));
 }
 
 #[tokio::test]

@@ -3,9 +3,9 @@
 use booker_core::{
     Adjustment, BoardOption, BoardOptionId, Booking, BookingId, BookingRoom, BookingRoomId,
     BookingSource, BookingStatus, CateringSitting, DateRange, Event, EventId, EventKind, Floor,
-    FloorId, GridRect, Guest, GuestId, Layout, Money, RateRule, RateRuleId, RoomBlock, RoomType,
-    RoomTypeId, Space, SpaceId, SpaceKind, SuiteBooking, SuiteBookingId, SuiteBookingStatus,
-    SuiteCapacities, SuitePricing, SuiteRates, ValidationError,
+    FloorId, GridRect, Guest, GuestId, Layout, Money, RateRule, RateRuleId, RoomBlock, RoomFeature,
+    RoomType, RoomTypeId, Space, SpaceId, SpaceKind, SuiteBooking, SuiteBookingId,
+    SuiteBookingStatus, SuiteCapacities, SuitePricing, SuiteRates, ValidationError,
 };
 use chrono::{Datelike, Days, Local, NaiveDate, NaiveDateTime, NaiveTime, Weekday};
 
@@ -67,6 +67,7 @@ impl SqliteStore {
                 ROOM_H,
             ),
             out_of_service: false,
+            features: Vec::new(),
             notes: String::new(),
         };
 
@@ -92,8 +93,9 @@ impl SqliteStore {
                     } else {
                         format!("{level}{number:02}")
                     };
-                    self.save_space(&room(&floor, label, slot, top, usize::from(number)))
-                        .await?;
+                    let mut space = room(&floor, label, slot, top, usize::from(number));
+                    space.features = demo_features(level, number);
+                    self.save_space(&space).await?;
                     number += 1;
                 }
             }
@@ -132,6 +134,7 @@ impl SqliteStore {
                         suite_capacities: caps,
                         rect: GridRect::new(x, ROWS - ROOM_H, w, ROOM_H),
                         out_of_service: false,
+                        features: Vec::new(),
                         notes: String::new(),
                     })
                     .await?;
@@ -615,6 +618,7 @@ impl SqliteStore {
                         [rng.below(6) as usize]
                         .map(|i| boards[i].id),
                     price_override: None,
+                    cars: 0,
                 });
             }
 
@@ -719,4 +723,17 @@ impl DemoRng {
         self.0 = x;
         x % n
     }
+}
+
+/// The demo hotel's room features: wifi everywhere, two accessible rooms and
+/// three pet-friendly ones on the ground floor, and one smoking room (216).
+fn demo_features(level: i32, number: u16) -> Vec<RoomFeature> {
+    let mut features = vec![RoomFeature::Wifi];
+    match (level, number) {
+        (0, 1..=2) => features.push(RoomFeature::Accessible),
+        (0, 3..=5) => features.push(RoomFeature::PetsAllowed),
+        (2, 16) => features.push(RoomFeature::Smoking),
+        _ => {}
+    }
+    features
 }

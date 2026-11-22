@@ -20,7 +20,8 @@
   import type { RoomType } from "#lib/bindings/RoomType.ts";
   import type { Space } from "#lib/bindings/Space.ts";
   import TariffChart from "#lib/chart/TariffChart.svelte";
-  import BookingViews from "#lib/booking/BookingViews.svelte";
+  import ViewSwitch from "#lib/nav/ViewSwitch.svelte";
+  import { bookingViews } from "#lib/nav/views.ts";
   import { addDays, today } from "#lib/dates.ts";
 
 
@@ -36,6 +37,15 @@
     if (params.booking) q.set("booking", params.booking);
     if (params.highlight) q.set("highlight", params.highlight);
     return `/chart?${q}`;
+  }
+
+  let search = $state("");
+
+  /** Searching from the calendar shows the results in the list view. */
+  function searchBookings(event: SubmitEvent) {
+    event.preventDefault();
+    const q = search.trim();
+    if (q) void goto(`/bookings?q=${encodeURIComponent(q)}`);
   }
 
   function setFrom(next: string) {
@@ -117,7 +127,7 @@
   </p>
 
   <div class="row toolbar">
-    <BookingViews current="calendar" />
+    <ViewSwitch views={bookingViews} current="Calendar" />
     <Button onclick={() => setFrom(addDays(from, -7))}>← Week</Button>
     <Button onclick={() => setFrom(defaultFrom)}>Today</Button>
     <Button onclick={() => setFrom(addDays(from, 7))}>Week →</Button>
@@ -125,6 +135,12 @@
       <FieldLabel>Start from</FieldLabel>
       <Input type="date" value={from} onValueChange={(v) => v && setFrom(v)} />
     </Field>
+    <form class="search" role="search" onsubmit={searchBookings}>
+      <Field>
+        <FieldLabel>Search bookings</FieldLabel>
+        <Input type="search" bind:value={search} placeholder="Reference, name or email, then Enter" />
+      </Field>
+    </form>
     <Button data-variant="solid" onclick={() => goto(`/bookings/new?from=${from}`)}>New booking</Button>
   </div>
 
@@ -194,6 +210,15 @@
 
   .toolbar :global([data-slot="field"]) {
     flex: 0 1 11rem;
+  }
+
+  .search {
+    display: flex;
+    flex: 1 1 16rem;
+  }
+
+  .toolbar .search :global([data-slot="field"]) {
+    flex: 1 1 auto;
   }
 
   :global(.booking-panel[data-side="right"]) {

@@ -4,7 +4,11 @@ import type { Money } from "./Money";
 /**
  * The price of one night, split so staff can see where it comes from.
  */
-export type NightPrice = { night: string, room: Money, supplements: Money, board: Money, total: Money, 
+export type NightPrice = { night: string, room: Money, supplements: Money, board: Money, 
+/**
+ * Cars × the parking price.
+ */
+parking: Money, total: Money, 
 /**
  * Names of the rate rules that changed the room price.
  */

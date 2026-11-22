@@ -4,6 +4,8 @@
   import { toast } from "@ui-sdk/svelte/toast";
   import { goto } from "$app/navigation";
   import { api, errorMessage } from "#lib/api.ts";
+  import ViewSwitch from "#lib/nav/ViewSwitch.svelte";
+  import { functionViews } from "#lib/nav/views.ts";
   import type { EventListItem } from "#lib/bindings/EventListItem.ts";
   import { formatDay, today } from "#lib/dates.ts";
   import { useSession } from "#lib/session/session.svelte.ts";
@@ -53,10 +55,13 @@
   </div>
   <p class="page-intro">Weddings, conferences and dinners: their suites, catering numbers and rooms held for guests.</p>
 
-  <label data-slot="label" class="switch-row">
-    Include past events
-    <Switch bind:checked={showPast}><SwitchThumb /></Switch>
-  </label>
+  <div class="switch-row">
+    <ViewSwitch views={functionViews} current="Events" label="Suites or events" />
+    <label data-slot="label" class="past">
+      Include past events
+      <Switch bind:checked={showPast}><SwitchThumb /></Switch>
+    </label>
+  </div>
 
   {#if events.length}
     <table class="list">
@@ -112,8 +117,15 @@
 
   .switch-row {
     display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: calc(var(--ui-spacing) * 6);
+    margin-bottom: calc(var(--ui-spacing) * 4);
+  }
+
+  .past {
+    display: flex;
     align-items: center;
     gap: calc(var(--ui-spacing) * 3);
-    margin-bottom: calc(var(--ui-spacing) * 4);
   }
 </style>

@@ -232,6 +232,7 @@ pub fn stay_charges(
 ) -> Vec<Charge> {
     let room_tax = settings.basis_points_for(ChargeCategory::Accommodation, rates);
     let board_tax = settings.basis_points_for(ChargeCategory::Board, rates);
+    let parking_tax = settings.basis_points_for(ChargeCategory::Other, rates);
     let mut out = Vec::new();
     for (room, pricing) in detail.booking.rooms.iter().zip(&detail.pricing) {
         let Some(first) = pricing.nights.first() else {
@@ -254,16 +255,16 @@ pub fn stay_charges(
             ));
             continue;
         }
-        // Group nights by (room price, board price). A BTreeMap keeps the
+        // Group nights by (room, board, parking price). A BTreeMap keeps the
         // groups in a fixed order, so the lines come out the same every time.
-        let mut by_price: BTreeMap<(i64, i64), Vec<NaiveDate>> = BTreeMap::new();
+        let mut by_price: BTreeMap<(i64, i64, i64), Vec<NaiveDate>> = BTreeMap::new();
         for n in &pricing.nights {
             by_price
-                .entry(((n.room + n.supplements).0, n.board.0))
+                .entry(((n.room + n.supplements).0, n.board.0, n.parking.0))
                 .or_default()
                 .push(n.night);
         }
-        for ((room_price, board_price), nights) in by_price {
+        for ((room_price, board_price, parking_price), nights) in by_price {
             let from = nights[0];
             let when = if nights.len() == 1 {
                 from.format("%-d %b").to_string()
@@ -288,9 +289,19 @@ pub fn stay_charges(
                     board_tax,
                 ));
             }
+            if parking_price != 0 {
+                out.push(stay_line(
+                    from,
+                    ChargeCategory::Other,
+                    format!("Parking for room {name}, {when}"),
+                    nights.len(),
+                    Money(parking_price),
+                    parking_tax,
+                ));
+            }
         }
     }
-    // A stable sort keeps each room line before its meals line.
+    // A stable sort keeps each room line before its meals and parking lines.
     out.sort_by_key(|c| c.date);
     out
 }
@@ -342,6 +353,7 @@ mod tests {
             room: Money(room),
             supplements: Money::ZERO,
             board: Money(board),
+            parking: Money::ZERO,
             total: Money(room + board),
             rules: Vec::new(),
         }
@@ -370,6 +382,7 @@ mod tests {
             children: 0,
             board_option_id: None,
             price_override,
+            cars: 0,
         };
         BookingDetail {
             pricing: vec![RoomPricing {
@@ -462,6 +475,54 @@ mod tests {
         // The folio adds up to the booking's own total.
         let f = folio(detail.booking.id, charges, Vec::new());
         assert_eq!(f.totals.gross, Money(3 * 2_400 + 2 * 11_000 + 9_500));
+    }
+
+    #[test]
+    fn parking_is_its_own_line_taxed_as_other() {
+        let (mut settings, rates) = vat();
+        settings.other_rate = Some(rates[0].id);
+        let mut first = night("2026-06-19", 11_000, 0);
+        first.parking = Money(1_000);
+        first.total = Money(12_000);
+        let mut second = night("2026-06-20", 11_000, 0);
+        second.parking = Money(1_000);
+        second.total = Money(12_000);
+        let detail = detail(vec![first, second], None);
+        let charges = stay_charges(&detail, |_| "101".into(), &settings, &rates);
+        let parking: Vec<_> = charges
+            .iter()
+            .filter(|c| c.category == ChargeCategory::Other)
+            .map(|c| {
+                (
+                    c.quantity,
+                    c.unit_price,
+                    c.description.as_str(),
+                    c.tax_basis_points,
+                )
+            })
+            .collect();
+        assert_eq!(
+            parking,
+            vec![(
+                2,
+                Money(1_000),
+                "Parking for room 101, 2 nights from 19 Jun",
+                2000
+            )]
+        );
+        let f = folio(detail.booking.id, charges, Vec::new());
+        assert_eq!(f.totals.gross, Money(2 * 12_000));
+    }
+
+    #[test]
+    fn an_agreed_price_includes_parking() {
+        let (settings, rates) = vat();
+        let mut n = night("2026-06-19", 11_000, 0);
+        n.parking = Money(1_000);
+        let detail = detail(vec![n], Some(Money(10_000)));
+        let charges = stay_charges(&detail, |_| "101".into(), &settings, &rates);
+        assert_eq!(charges.len(), 1);
+        assert_eq!(charges[0].unit_price, Money(10_000));
     }
 
     #[test]

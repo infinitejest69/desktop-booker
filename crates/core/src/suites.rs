@@ -280,6 +280,7 @@ mod tests {
             },
             rect: GridRect::new(0, 0, 6, 4),
             out_of_service: false,
+            features: Vec::new(),
             notes: String::new(),
         }
     }

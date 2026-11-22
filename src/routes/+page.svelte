@@ -4,14 +4,12 @@
   import { Button } from "@ui-sdk/svelte/button";
   import { toast } from "@ui-sdk/svelte/toast";
   import { api, errorMessage } from "#lib/api.ts";
-  import type { BookingListItem } from "#lib/bindings/BookingListItem.ts";
   import type { BookingStatus } from "#lib/bindings/BookingStatus.ts";
   import type { ChartEntry } from "#lib/bindings/ChartEntry.ts";
   import type { EventListItem } from "#lib/bindings/EventListItem.ts";
   import type { Space } from "#lib/bindings/Space.ts";
-  import { boardLabel, boardsSummary } from "#lib/booking/board.ts";
+  import { boardLabel } from "#lib/booking/board.ts";
   import { statusLabel } from "#lib/booking/status.ts";
-  import TariffChart from "#lib/chart/TariffChart.svelte";
   import FloorPlanView from "#lib/floor-plan/FloorPlanView.svelte";
   import { roomStatuses } from "#lib/floor-plan/status.ts";
   import type { Floor } from "#lib/bindings/Floor.ts";
@@ -24,7 +22,6 @@
   const session = useSession();
 
   const day = today();
-  const chartFrom = addDays(day, -1);
 
   let loaded = $state(false);
   let hasFloors = $state(false);
@@ -34,12 +31,10 @@
   let hk = $state(new Map<string, HousekeepingStatus>());
   let codes = $state(new Map<string, string>());
   let entries = $state<ChartEntry[]>([]);
-  let upcoming = $state<BookingListItem[]>([]);
   let events = $state<EventListItem[]>([]);
   /** Set when backups need attention: overdue or the folder is missing. */
   let backupWarning = $state<string | null>(null);
   let busy = $state<string | null>(null);
-  let chartDays = $state(14);
 
   const summary = $derived(todaySummary(entries, rooms, day));
   const roomName = $derived(new Map(rooms.map((r) => [r.id, r.name])));
@@ -77,14 +72,12 @@
   }
 
   async function loadBookings() {
-    const [e, u, ev] = await Promise.all([
-      api.chart(addDays(day, -1), addDays(day, Math.max(chartDays, 2))),
-      api.searchBookings(""),
+    const [e, ev] = await Promise.all([
+      api.chart(addDays(day, -1), addDays(day, 2)),
       api.listEvents(day).catch(() => []),
     ]);
     entries = e;
     events = ev;
-    upcoming = u.filter((b) => b.arrival > day).slice(0, 8);
   }
 
   onMount(load);
@@ -99,12 +92,6 @@
             : null;
       })
       .catch(() => {});
-  });
-
-  $effect(() => {
-    // Refetch when the chart grows to show more days.
-    const count = chartDays;
-    if (loaded && hasFloors && count) void loadBookings();
   });
 
   async function loadDemo() {
@@ -192,6 +179,32 @@
       </p>
     </section>
 
+    <section class="panel hotel" aria-labelledby="hotel-heading">
+      <div class="section-head">
+        <h2 id="hotel-heading">The hotel today</h2>
+        <a href="/floor-plan" class="link-button">Rooms and housekeeping</a>
+      </div>
+      <div class="floors">
+        {#each floorList as floor (floor.id)}
+          <a class="floor-link" href="/floor-plan" aria-label={`${floor.name}: open Rooms`}>
+            <span class="floor-name">{floor.name}</span>
+            <FloorPlanView
+              {floor}
+              spaces={allSpaces.filter((s) => s.floor_id === floor.id)}
+              typeCodes={codes}
+              statuses={planStatuses}
+              housekeeping={hk}
+              cell={13}
+              compact
+            />
+          </a>
+        {/each}
+      </div>
+      <p class="muted key">
+        Green arriving, blue in house, amber leaving, white free; a brass dot needs cleaning.
+      </p>
+    </section>
+
     <div class="today">
       <section class="panel" aria-labelledby="arrivals-heading">
         <h2 id="arrivals-heading">Arrivals <span class="count">{summary.arrivals.length}</span></h2>
@@ -242,25 +255,6 @@
         {/if}
       </section>
 
-      <section class="panel" aria-labelledby="inhouse-heading">
-        <h2 id="inhouse-heading">In house <span class="count">{summary.inHouse.length}</span></h2>
-        {#if summary.inHouse.length}
-          <ul class="people">
-            {#each summary.inHouse as h (h.booking_room_id)}
-              <li>
-                <span class="fob">{roomName.get(h.space_id)}</span>
-                <div class="person">
-                  <span class="name-line"><a href={`/bookings/${h.booking_id}`} class="who">{h.guest_name}</a> <span class="ref" title="Booking number">{h.reference}</span></span>
-                  <span class="muted">Leaves {formatDay(h.stay.end, { weekday: "long", day: "numeric", month: "short" })}</span>
-                  <span class="board">{boardLabel(h.board)}</span>
-                </div>
-              </li>
-            {/each}
-          </ul>
-        {:else}
-          <p class="muted">Nobody checked in yet.</p>
-        {/if}
-      </section>
     </div>
 
     {#if soonEvents.length || releasing.length}
@@ -295,76 +289,8 @@
       </section>
     {/if}
 
-    <section class="panel hotel" aria-labelledby="hotel-heading">
-      <div class="section-head">
-        <h2 id="hotel-heading">The hotel today</h2>
-        <a href="/floor-plan" class="link-button">Floor plan and housekeeping</a>
-      </div>
-      <div class="floors">
-        {#each floorList as floor (floor.id)}
-          <a class="floor-link" href="/floor-plan" aria-label={`${floor.name}: open the floor plan`}>
-            <span class="floor-name">{floor.name}</span>
-            <FloorPlanView
-              {floor}
-              spaces={allSpaces.filter((s) => s.floor_id === floor.id)}
-              typeCodes={codes}
-              statuses={planStatuses}
-              housekeeping={hk}
-              cell={13}
-              compact
-            />
-          </a>
-        {/each}
-      </div>
-      <p class="muted key">
-        Green arriving, blue in house, amber leaving, white free; a brass dot needs cleaning.
-      </p>
-    </section>
 
-    <section aria-labelledby="chart-heading" class="chart-section">
-      <div class="section-head">
-        <h2 id="chart-heading">Coming weeks</h2>
-        <a href="/chart" class="link-button">Full booking calendar</a>
-      </div>
-      <TariffChart
-        {rooms}
-        {codes}
-        {entries}
-        from={chartFrom}
-        bind:days={chartDays}
-        fit
-        label="Coming weeks"
-        onBooking={(id) => goto(`/chart?from=${chartFrom}&booking=${id}`)}
-        onFree={(roomId, date) => goto(`/bookings/new?room=${roomId}&start=${date}&from=${chartFrom}`)}
-      />
-    </section>
 
-    <section aria-labelledby="upcoming-heading" class="panel">
-      <div class="section-head">
-        <h2 id="upcoming-heading">Coming up</h2>
-        <a href="/bookings" class="link-button">All bookings</a>
-      </div>
-      {#if upcoming.length}
-        <table class="list">
-          <thead><tr><th>Arrival</th><th>Booking</th><th>Guest</th><th>Rooms</th><th>Nights</th><th>Board</th><th>Status</th></tr></thead>
-          <tbody>
-            {#each upcoming as b (b.id)}
-              <tr>
-                <td>{formatDay(b.arrival, { weekday: "short", day: "numeric", month: "short" })}</td>
-                <td><a href={`/bookings/${b.id}`}>{b.reference}</a></td>
-                <td>{b.guest_name}</td>
-                <td>{b.rooms.join(", ")}</td>
-                <td>{daysBetween(b.arrival, b.departure)}</td>
-                <td>{boardsSummary(b.boards)}</td>
-                <td><span class="status" data-status={b.status}>{statusLabel[b.status]}</span></td>
-              </tr>
-            {/each}
-          </tbody>
-        </table>
-      {:else}
-        <p class="muted">No upcoming bookings.</p>
-      {/if}
-    </section>
   {/if}
 </div>
 
@@ -381,7 +307,7 @@
   }
 
   .glance {
-    margin: calc(var(--ui-spacing) * 1) 0 calc(var(--ui-spacing) * 6);
+    margin: calc(var(--ui-spacing) * 1) 0 calc(var(--ui-spacing) * 4);
   }
 
   .glance p {
@@ -399,7 +325,7 @@
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr));
     gap: calc(var(--ui-spacing) * 4);
-    margin-bottom: calc(var(--ui-spacing) * 6);
+    margin-bottom: calc(var(--ui-spacing) * 4);
     align-items: start;
   }
 
@@ -511,7 +437,7 @@
   }
 
   .hotel {
-    margin-bottom: calc(var(--ui-spacing) * 6);
+    margin-bottom: calc(var(--ui-spacing) * 4);
   }
 
   .floors {
@@ -546,10 +472,6 @@
   .key {
     margin: calc(var(--ui-spacing) * 2) 0 0;
     font-size: 0.85rem;
-  }
-
-  .chart-section {
-    margin-bottom: calc(var(--ui-spacing) * 6);
   }
 
   .section-head {

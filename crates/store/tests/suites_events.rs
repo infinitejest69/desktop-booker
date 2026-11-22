@@ -63,6 +63,7 @@ async fn fixture() -> Fixture {
         },
         rect: GridRect::new(0, 0, 8, 4),
         out_of_service: false,
+        features: Vec::new(),
         notes: String::new(),
     };
     store.save_space(&suite).await.unwrap();
@@ -91,6 +92,7 @@ async fn fixture() -> Fixture {
             suite_capacities: SuiteCapacities::default(),
             rect: GridRect::new(10 + u16::try_from(i).unwrap() * 3, 0, 3, 3),
             out_of_service: false,
+            features: Vec::new(),
             notes: String::new(),
         };
         store.save_space(&room).await.unwrap();

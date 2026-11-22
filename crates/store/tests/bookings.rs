@@ -7,7 +7,8 @@ use booker_core::{
     ValidationError,
 };
 use booker_store::{
-    BookingRepo, FloorRepo, GuestRepo, RateRepo, RoomTypeRepo, SpaceRepo, SqliteStore, StoreError,
+    BookingRepo, FloorRepo, GuestRepo, RateRepo, RoomTypeRepo, SettingsRepo, SpaceRepo,
+    SqliteStore, StoreError,
 };
 use chrono::{Datelike, NaiveDate};
 
@@ -58,6 +59,7 @@ async fn fixture() -> Fixture {
             suite_capacities: SuiteCapacities::default(),
             rect: GridRect::new(u16::try_from(i).unwrap() * 3, 0, 3, 3),
             out_of_service: false,
+            features: Vec::new(),
             notes: String::new(),
         };
         store.save_space(&space).await.unwrap();
@@ -94,6 +96,7 @@ fn booking(guest: &Guest, space: &Space, s: DateRange) -> Booking {
             children: 0,
             board_option_id: None,
             price_override: None,
+            cars: 0,
         }],
     }
 }
@@ -294,10 +297,43 @@ async fn quotes_include_board_and_supplements() {
             2,
             1,
             Some(bb.id),
+            0,
         )
         .await
         .unwrap();
     assert_eq!(q.total, Money::from_major(90 + 15 + 2 * 12 + 6));
+}
+
+#[tokio::test]
+async fn parking_is_priced_per_car_per_night_and_fixed_when_booked() {
+    let f = fixture().await;
+    let mut settings = f.store.get_settings().await.unwrap();
+    settings.parking_price = Money::from_major(8);
+    f.store.save_settings(&settings).await.unwrap();
+
+    let g = guest("Hughes");
+    let mut b = booking(&g, &f.rooms[0], stay("2026-05-10", "2026-05-12"));
+    b.rooms[0].cars = 2;
+    let saved = f.store.save_booking(&b, &g).await.unwrap();
+    assert_eq!(saved.booking.rooms[0].cars, 2);
+    let nights = &saved.pricing[0].nights;
+    assert!(nights.iter().all(|n| n.parking == Money::from_major(16)));
+    assert_eq!(
+        saved.pricing[0].calculated,
+        Money::from_major(2 * (90 + 16))
+    );
+
+    // A later price change doesn't touch a booking already made...
+    settings.parking_price = Money::from_major(20);
+    f.store.save_settings(&settings).await.unwrap();
+    let again = f.store.save_booking(&saved.booking, &g).await.unwrap();
+    assert_eq!(again.pricing[0].nights[0].parking, Money::from_major(16));
+
+    // ...but changing the number of cars prices it again, at today's price.
+    let mut one_car = again.booking.clone();
+    one_car.rooms[0].cars = 1;
+    let repriced = f.store.save_booking(&one_car, &g).await.unwrap();
+    assert_eq!(repriced.pricing[0].nights[0].parking, Money::from_major(20));
 }
 
 #[tokio::test]

@@ -12,4 +12,8 @@ export type BookingRoom = { id: BookingRoomId, space_id: SpaceId, stay: DateRang
 /**
  * Replaces the calculated total for this room's whole stay.
  */
-price_override: Money | null, };
+price_override: Money | null, 
+/**
+ * Cars to park, charged per car per night at the hotel's parking price.
+ */
+cars: number, };

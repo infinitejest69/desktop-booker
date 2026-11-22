@@ -12,6 +12,7 @@
     SelectTrigger,
     SelectValue,
   } from "@ui-sdk/svelte/select";
+  import { Checkbox, CheckboxIndicator } from "@ui-sdk/svelte/checkbox";
   import { Switch, SwitchThumb } from "@ui-sdk/svelte/switch";
   import { Textarea } from "@ui-sdk/svelte/textarea";
   import { toast } from "@ui-sdk/svelte/toast";
@@ -23,7 +24,10 @@
   import type { Floor } from "#lib/bindings/Floor.ts";
   import type { GridRect } from "#lib/bindings/GridRect.ts";
   import type { RoomType } from "#lib/bindings/RoomType.ts";
+  import type { RoomFeature } from "#lib/bindings/RoomFeature.ts";
   import type { Space } from "#lib/bindings/Space.ts";
+  import { featureLabel, roomFeatures } from "#lib/rooms/features.ts";
+  import FeatureIcons from "#lib/rooms/FeatureIcons.svelte";
   import type { SpaceKind } from "#lib/bindings/SpaceKind.ts";
   import type { Boxes } from "#lib/floor-plan/editor.ts";
   import {
@@ -203,6 +207,7 @@
       suite_capacities: { theatre: null, boardroom: null, banquet: null, cabaret: null, reception: null },
       rect,
       out_of_service: false,
+      features: t.kind === "room" ? ["wifi"] : [],
       notes: "",
     };
   }
@@ -376,6 +381,13 @@
     if (!draft || (kind !== "room" && kind !== "suite")) return;
     draft.kind = kind;
     draft.room_type_id = kind === "room" ? (draft.room_type_id ?? roomTypes[0]?.id ?? null) : null;
+    if (kind === "suite") draft.features = []; // features are for bedrooms only
+  }
+
+  function setFeature(feature: RoomFeature, on: boolean) {
+    if (!draft) return;
+    const others = draft.features.filter((f) => f !== feature);
+    draft.features = on ? [...others, feature] : others;
   }
 
   async function saveDraft(event: SubmitEvent) {
@@ -568,6 +580,21 @@
                 </SelectContent>
               </Select>
             </Field>
+            <fieldset class="capacities features">
+              <legend>Features (rooms are non-smoking unless Smoking is ticked)</legend>
+              {#each roomFeatures as feature (feature)}
+                <label class="feature-choice">
+                  <Checkbox
+                    checked={draft.features.includes(feature)}
+                    onCheckedChange={(on) => setFeature(feature, on === true)}
+                  >
+                    <CheckboxIndicator aria-hidden="true">✓</CheckboxIndicator>
+                  </Checkbox>
+                  <FeatureIcons features={[feature]} />
+                  {featureLabel[feature]}
+                </label>
+              {/each}
+            </fieldset>
           {:else}
             <fieldset class="capacities">
               <legend>Capacity by layout (leave empty if not offered)</legend>
@@ -902,6 +929,18 @@
   .capacities legend {
     color: var(--ui-muted-foreground);
     padding: 0 calc(var(--ui-spacing) * 1);
+  }
+
+  .features {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
+    gap: calc(var(--ui-spacing) * 2);
+  }
+
+  .feature-choice {
+    display: flex;
+    align-items: center;
+    gap: calc(var(--ui-spacing) * 2);
   }
 
   .capacities :global([data-slot="field"]) {

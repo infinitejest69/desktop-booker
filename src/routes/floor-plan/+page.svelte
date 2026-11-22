@@ -3,13 +3,14 @@
   import { Button } from "@ui-sdk/svelte/button";
   import { Field, FieldLabel } from "@ui-sdk/svelte/field";
   import { Input } from "@ui-sdk/svelte/input";
-  import { Tabs, TabsList, TabsPanel, TabsTab } from "@ui-sdk/svelte/tabs";
   import { toast } from "@ui-sdk/svelte/toast";
   import { Toggle, ToggleGroup } from "@ui-sdk/svelte/toggle";
   import { goto } from "$app/navigation";
   import { page } from "$app/state";
   import FloorPlanView from "#lib/floor-plan/FloorPlanView.svelte";
   import RoomCards from "#lib/floor-plan/RoomCards.svelte";
+  import FeatureIcons from "#lib/rooms/FeatureIcons.svelte";
+  import { roomFeatureSummary } from "#lib/rooms/features.ts";
   import { api, errorMessage } from "#lib/api.ts";
   import type { ChartEntry } from "#lib/bindings/ChartEntry.ts";
   import type { Floor } from "#lib/bindings/Floor.ts";
@@ -32,7 +33,6 @@
   let entries = $state<ChartEntry[]>([]);
   let hk = $state(new Map<string, HousekeepingStatus>());
   let view = $state<string[]>([page.url.searchParams.get("view") === "cards" ? "cards" : "plan"]);
-  let floorTab = $state<string | null>(null);
   let selected = $state<string | null>(null);
   let hires = $state<SuiteBookingEntry[]>([]);
   /** Suite use is shown at this time ("HH:MM"), or across the day when empty. */
@@ -107,10 +107,9 @@
       floors = f.sort((a, b) => a.level - b.level);
       roomTypes = t;
       spaces = s;
-      floorTab = floors[0]?.id ?? null;
       await Promise.all([loadEntries(date), loadHousekeeping()]);
     } catch (error) {
-      toast.error("Couldn't load the floor plan", { description: errorMessage(error) });
+      toast.error("Couldn't load the rooms", { description: errorMessage(error) });
     } finally {
       loaded = true;
     }
@@ -138,7 +137,7 @@
 </script>
 
 <div class="page wide">
-  <h1>Floor plan and housekeeping</h1>
+  <h1>Rooms</h1>
   {#if !loaded}
     <p class="muted">Loading…</p>
   {:else if floors.length === 0}
@@ -172,34 +171,28 @@
     {#if !isToday}
       <p class="muted">Housekeeping is shown for today only.</p>
     {/if}
+    {#if view[0] !== "cards"}
+      <div class="legend" aria-hidden="true">
+        <span data-key="free">Free</span>
+        <span data-key="arriving">Arriving</span>
+        <span data-key="in_house">In house</span>
+        <span data-key="departing">Departing</span>
+        <span data-key="suite">Function suite</span>
+        <span data-key="suite-use">Suite in use</span>
+        <span data-key="oos">Out of service</span>
+        {#if isToday}<span data-key="dirty">Dirty</span>{/if}
+      </div>
+    {/if}
 
-    <Tabs bind:value={floorTab}>
-      <TabsList aria-label="Floors">
-        {#each floors as floor (floor.id)}
-          <TabsTab value={floor.id}>{floor.name}</TabsTab>
-        {/each}
-      </TabsList>
+    <div class="floors">
       {#each floors as floor (floor.id)}
         {@const onFloor = spaces.filter((s) => s.floor_id === floor.id)}
         {@const roomsOnFloor = onFloor
           .filter((s) => s.kind === "room")
           .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }))}
-        <TabsPanel value={floor.id}>
+        <section class="floor" aria-labelledby={`floor-${floor.id}`}>
           <div class="floor-bar">
-            {#if view[0] !== "cards"}
-              <div class="legend" aria-hidden="true">
-                <span data-key="free">Free</span>
-                <span data-key="arriving">Arriving</span>
-                <span data-key="in_house">In house</span>
-                <span data-key="departing">Departing</span>
-                <span data-key="suite">Function suite</span>
-                <span data-key="suite-use">Suite in use</span>
-                <span data-key="oos">Out of service</span>
-                {#if isToday}<span data-key="dirty">Dirty</span>{/if}
-              </div>
-            {:else}
-              <span></span>
-            {/if}
+            <h2 id={`floor-${floor.id}`}>{floor.name}</h2>
             {#if isToday && roomsOnFloor.length}
               <div class="row">
                 <Button onclick={() => setFloor(floor, "clean")}>Mark floor clean</Button>
@@ -251,6 +244,10 @@
                     <span>{typeCodes.get(selectedRoom.room_type_id ?? "") ?? ""}</span>
                     <Button onclick={() => (selected = null)}>Close</Button>
                   </div>
+                  <p class="room-features">
+                    <FeatureIcons features={selectedRoom.features} />
+                    {roomFeatureSummary(selectedRoom.features)}
+                  </p>
                   <p>
                     <strong>{roomStatusLabel[statuses.get(selectedRoom.id) ?? "free"]}</strong> on
                     {formatDay(date, { weekday: "long", day: "numeric", month: "short" })}
@@ -283,9 +280,9 @@
               {/if}
             </div>
           {/if}
-        </TabsPanel>
+        </section>
       {/each}
-    </Tabs>
+    </div>
   {/if}
 </div>
 
@@ -319,7 +316,23 @@
     align-items: center;
     justify-content: space-between;
     gap: calc(var(--ui-spacing) * 3);
-    margin: calc(var(--ui-spacing) * 4) 0 calc(var(--ui-spacing) * 3);
+    margin: 0 0 calc(var(--ui-spacing) * 3);
+  }
+
+  .floors {
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--ui-spacing) * 8);
+    margin-top: calc(var(--ui-spacing) * 4);
+  }
+
+  .floor {
+    padding-top: calc(var(--ui-spacing) * 4);
+    border-top: 1px solid var(--ui-border);
+  }
+
+  .floor-bar h2 {
+    margin: 0;
   }
 
   .legend {
@@ -401,6 +414,13 @@
 
   .room-head :global(button) {
     margin-left: auto;
+  }
+
+  .room-features {
+    display: flex;
+    align-items: center;
+    gap: calc(var(--ui-spacing) * 2);
+    color: var(--ink-muted);
   }
 
   .stay {

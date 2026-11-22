@@ -4,16 +4,26 @@
   import { Input } from "@ui-sdk/svelte/input";
   import { toast } from "@ui-sdk/svelte/toast";
   import { goto } from "$app/navigation";
+  import { page } from "$app/state";
   import { api, errorMessage } from "#lib/api.ts";
   import type { BookingListItem } from "#lib/bindings/BookingListItem.ts";
   import { boardsSummary } from "#lib/booking/board.ts";
   import { statusLabel } from "#lib/booking/status.ts";
   import { daysBetween, formatDay } from "#lib/dates.ts";
-  import BookingViews from "#lib/booking/BookingViews.svelte";
+  import ViewSwitch from "#lib/nav/ViewSwitch.svelte";
+  import { bookingViews } from "#lib/nav/views.ts";
 
-  let query = $state("");
+  // A search can arrive from the calendar as ?q=…
+  let query = $state(page.url.searchParams.get("q") ?? "");
   let results = $state<BookingListItem[]>([]);
   let loaded = $state(false);
+
+  // Keep the search in the address, so Back from a booking returns to these results.
+  $effect(() => {
+    const q = query.trim();
+    const url = q ? `/bookings?q=${encodeURIComponent(q)}` : "/bookings";
+    if (page.url.pathname + page.url.search !== url) void goto(url, { replace: true, reset: false });
+  });
 
   $effect(() => {
     const q = query;
@@ -31,10 +41,11 @@
   <h1>Bookings</h1>
   <p class="page-intro">Search by reference, guest name or email. With no search, upcoming and current stays are shown.</p>
   <div class="row" style="margin-bottom: 1rem">
-    <BookingViews current="list" />
+    <ViewSwitch views={bookingViews} current="List" />
     <Field>
       <FieldLabel>Search</FieldLabel>
-      <Input type="search" bind:value={query} placeholder="2026-0012, Hughes, jo@example.com" />
+      <!-- svelte-ignore a11y_autofocus -->
+      <Input type="search" bind:value={query} placeholder="2026-0012, Hughes, jo@example.com" autofocus={!!query} />
     </Field>
     <Button data-variant="solid" onclick={() => goto("/bookings/new")}>New booking</Button>
   </div>

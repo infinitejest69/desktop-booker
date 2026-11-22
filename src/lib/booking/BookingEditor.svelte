@@ -12,6 +12,7 @@
     SelectValue,
   } from "@ui-sdk/svelte/select";
   import { Switch, SwitchThumb } from "@ui-sdk/svelte/switch";
+  import { Toggle, ToggleGroup } from "@ui-sdk/svelte/toggle";
   import { Textarea } from "@ui-sdk/svelte/textarea";
   import { toast } from "@ui-sdk/svelte/toast";
   import MoneyField from "../components/MoneyField.svelte";
@@ -30,6 +31,7 @@
   import type { RoomType } from "../bindings/RoomType";
   import type { Space } from "../bindings/Space";
   import type { StayQuote } from "../bindings/StayQuote";
+  import { matchesNeeds, needLabel, roomFeatureSummary, roomNeeds, type RoomNeed } from "../rooms/features";
 
   interface Props {
     detail?: BookingDetail | null;
@@ -54,6 +56,10 @@
     override: number;
     quote: StayQuote | null;
     free: string[];
+    /** What the guest asked for (pets, accessible…). Only narrows the room list; not saved. */
+    needs: RoomNeed[];
+    /** Cars to park, charged per car per night. */
+    cars: number;
   }
 
   const sources: { value: BookingSource; label: string }[] = [
@@ -106,6 +112,8 @@
       override: 0,
       quote: null,
       free: [],
+      needs: [],
+      cars: 0,
     };
   }
 
@@ -141,6 +149,8 @@
         override: r.price_override ?? 0,
         quote: null,
         free: [],
+        needs: [],
+        cars: r.cars,
       }));
     } else {
       const bb = boards.find((b) => b.code === "BB");
@@ -153,7 +163,7 @@
   // Re-quote and re-check free rooms whenever a room's stay details change.
   $effect(() => {
     for (const d of drafts) {
-      const key = [d.space_id, d.start, d.end, d.adults, d.children, d.board];
+      const key = [d.space_id, d.start, d.end, d.adults, d.children, d.board, d.cars];
       void key;
       void refresh(d);
     }
@@ -168,7 +178,7 @@
     try {
       d.free = await api.freeRooms(stay, detail?.booking.id ?? null);
       d.quote = d.space_id
-        ? await api.quoteRoom(d.space_id, stay, d.adults, d.children, d.board)
+        ? await api.quoteRoom(d.space_id, stay, d.adults, d.children, d.board, d.cars)
         : null;
     } catch {
       d.quote = null;
@@ -180,10 +190,13 @@
     return rooms.map((r) => {
       const type = typeById.get(r.room_type_id ?? "");
       const free = d.free.includes(r.id) && !takenHere.has(r.id);
+      const suits = matchesNeeds(r.features, d.needs);
+      const current = r.id === d.space_id;
+      const why = !free && !current ? " (taken)" : !suits && !current ? " (doesn't match)" : "";
       return {
         value: r.id,
-        label: `${r.name}${type ? `, ${type.name}` : ""}${free || r.id === d.space_id ? "" : " (taken)"}`,
-        disabled: !free && r.id !== d.space_id,
+        label: `${r.name}${type ? `, ${type.name}` : ""}: ${roomFeatureSummary(r.features).toLowerCase()}${why}`,
+        disabled: !current && (!free || !suits),
       };
     });
   }
@@ -225,6 +238,7 @@
         children: d.children,
         board_option_id: d.board,
         price_override: d.overrideOn ? d.override : null,
+        cars: d.cars,
       })),
     };
     saving = true;
@@ -316,9 +330,18 @@
             </Select>
           </Field>
         </div>
+        <div class="needs">
+          <span id={`needs-${d.id}`} class="needs-label">Room must have</span>
+          <ToggleGroup multiple aria-labelledby={`needs-${d.id}`} bind:value={d.needs}>
+            {#each roomNeeds as need (need)}
+              <Toggle value={need}>{needLabel[need]}</Toggle>
+            {/each}
+          </ToggleGroup>
+        </div>
         <div class="row">
           <NumberField label="Adults" bind:value={d.adults} min={1} max={maxGuests(d)} />
           <NumberField label="Children" bind:value={d.children} min={0} max={maxGuests(d)} />
+          <NumberField label="Cars to park" bind:value={d.cars} min={0} max={10} />
           <Field>
             <FieldLabel>Board</FieldLabel>
             <Select
@@ -343,7 +366,7 @@
             </summary>
             <table class="list">
               <thead>
-                <tr><th>Night</th><th>Room</th><th>Extras</th><th>Board</th><th>Total</th></tr>
+                <tr><th>Night</th><th>Room</th><th>Extras</th><th>Board</th><th>Parking</th><th>Total</th></tr>
               </thead>
               <tbody>
                 {#each d.quote.nights as n (n.night)}
@@ -352,6 +375,7 @@
                     <td>{formatMoney(n.room)}{n.rules.length ? ` (${n.rules.join(", ")})` : ""}</td>
                     <td>{formatMoney(n.supplements)}</td>
                     <td>{formatMoney(n.board)}</td>
+                    <td>{formatMoney(n.parking)}</td>
                     <td>{formatMoney(n.total)}</td>
                   </tr>
                 {/each}
@@ -464,6 +488,18 @@
     display: flex;
     flex-wrap: wrap;
     gap: calc(var(--ui-spacing) * 2);
+  }
+
+  .needs {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: calc(var(--ui-spacing) * 3);
+  }
+
+  .needs-label {
+    font-weight: 600;
+    font-size: 0.875rem;
   }
 
   .room-line {

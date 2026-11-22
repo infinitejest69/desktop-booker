@@ -98,6 +98,8 @@ pub struct NightPrice {
     pub room: Money,
     pub supplements: Money,
     pub board: Money,
+    /// Cars × the parking price.
+    pub parking: Money,
     pub total: Money,
     /// Names of the rate rules that changed the room price.
     pub rules: Vec<String>,
@@ -131,7 +133,9 @@ pub fn room_rate_for_night(
     (price, names)
 }
 
-/// Prices every night of a stay for one room.
+/// Prices every night of a stay for one room, with parking for `cars` at
+/// `parking_price` per car per night.
+#[allow(clippy::too_many_arguments)] // each is a separate input to the price
 pub fn quote_stay(
     room_type: &RoomType,
     rules: &[RateRule],
@@ -139,6 +143,8 @@ pub fn quote_stay(
     stay: DateRange,
     adults: u8,
     children: u8,
+    cars: u8,
+    parking_price: Money,
 ) -> StayQuote {
     let extra_adults = i64::from(adults.saturating_sub(room_type.default_occupancy));
     let children = i64::from(children);
@@ -146,6 +152,7 @@ pub fn quote_stay(
     let board_price = board.map_or(Money::ZERO, |b| {
         b.adult_price * i64::from(adults) + b.child_price * children
     });
+    let parking = parking_price * i64::from(cars);
 
     let nights: Vec<NightPrice> = stay
         .nights()
@@ -156,7 +163,8 @@ pub fn quote_stay(
                 room,
                 supplements,
                 board: board_price,
-                total: room + supplements + board_price,
+                parking,
+                total: room + supplements + board_price + parking,
                 rules,
             }
         })
@@ -281,6 +289,8 @@ mod tests {
             DateRange::new(d("2026-06-29"), d("2026-07-02")).unwrap(),
             2,
             0,
+            0,
+            Money::ZERO,
         );
         let rooms: Vec<_> = q.nights.iter().map(|n| n.room).collect();
         assert_eq!(
@@ -397,6 +407,8 @@ mod tests {
             DateRange::new(d("2026-05-01"), d("2026-05-03")).unwrap(),
             3,
             1,
+            0,
+            Money::ZERO,
         );
         let night = &q.nights[0];
         assert_eq!(night.room, Money::from_major(90));
@@ -404,6 +416,19 @@ mod tests {
         assert_eq!(night.board, Money::from_major(3 * 12 + 6));
         assert_eq!(night.total, Money::from_major(90 + 40 + 42));
         assert_eq!(q.total, Money::from_major(2 * 172));
+    }
+
+    #[test]
+    fn parking_is_per_car_per_night_and_part_of_the_total() {
+        let stay = DateRange::new(d("2026-05-01"), d("2026-05-03")).unwrap();
+        let q = quote_stay(&double(), &[], None, stay, 2, 0, 2, Money::from_major(8));
+        let night = &q.nights[0];
+        assert_eq!(night.parking, Money::from_major(16));
+        assert_eq!(night.total, Money::from_major(90 + 16));
+        assert_eq!(q.total, Money::from_major(2 * 106));
+
+        let no_car = quote_stay(&double(), &[], None, stay, 2, 0, 0, Money::from_major(8));
+        assert_eq!(no_car.nights[0].parking, Money::ZERO);
     }
 
     #[test]

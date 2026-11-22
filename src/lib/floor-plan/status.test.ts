@@ -12,6 +12,7 @@ const space = (id: string, out = false): Space => ({
   suite_capacities: { theatre: null, boardroom: null, banquet: null, cabaret: null, reception: null },
   rect: { x: 0, y: 0, w: 1, h: 1 },
   out_of_service: out,
+  features: [],
   notes: "",
 });
 

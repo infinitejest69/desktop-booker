@@ -31,7 +31,7 @@ Items move here from their phase (and are marked *moved to Phase 8* there), so e
 - [x] Report: ADR & RevPAR
 
 ### From Phase 7 (backups & packaging)
-- [ ] Clean install from the CI artefacts on Windows and Linux (Phase 7 acceptance)
+- [x] Clean install from the CI artefacts on Windows and Linux (Phase 7 acceptance)
 - [ ] macOS .dmg checked on a Mac
 
 ## Notes / decisions

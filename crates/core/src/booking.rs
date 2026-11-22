@@ -157,7 +157,12 @@ pub struct BookingRoom {
     pub board_option_id: Option<BoardOptionId>,
     /// Replaces the calculated total for this room's whole stay.
     pub price_override: Option<Money>,
+    /// Cars to park, charged per car per night at the hotel's parking price.
+    pub cars: u8,
 }
+
+/// The most cars one room on a booking can park.
+pub const MAX_CARS: u8 = 10;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
@@ -218,6 +223,9 @@ pub fn validate_booking(
         }
         if room.adults == 0 {
             return Err(ValidationError::NoAdults);
+        }
+        if room.cars > MAX_CARS {
+            return Err(ValidationError::TooManyCars { max: MAX_CARS });
         }
         let max = space
             .room_type_id
@@ -379,6 +387,7 @@ mod tests {
                 suite_capacities: SuiteCapacities::default(),
                 rect: GridRect::new(u16::try_from(i).unwrap() * 3, 0, 3, 3),
                 out_of_service: false,
+                features: Vec::new(),
                 notes: String::new(),
             })
             .collect();
@@ -391,6 +400,7 @@ mod tests {
             suite_capacities: SuiteCapacities::default(),
             rect: GridRect::new(0, 5, 6, 3),
             out_of_service: false,
+            features: Vec::new(),
             notes: String::new(),
         });
         Hotel {
@@ -420,6 +430,7 @@ mod tests {
             children,
             board_option_id: None,
             price_override: None,
+            cars: 0,
         }
     }
 
@@ -581,6 +592,12 @@ mod tests {
                 room: "101".into(),
                 max: 3
             })
+        );
+        let mut parked = room(&h.spaces[0], s, 2, 0);
+        parked.cars = MAX_CARS + 1;
+        assert_eq!(
+            validate_booking(&booking(vec![parked]), &h.spaces, &h.types, &[]),
+            Err(ValidationError::TooManyCars { max: MAX_CARS })
         );
         assert_eq!(
             validate_booking(

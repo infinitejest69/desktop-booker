@@ -39,6 +39,8 @@ pub enum ValidationError {
     RoomTypeRequired,
     #[error("A function suite can't have a room type")]
     SuiteHasRoomType,
+    #[error("Wifi, pets, accessible and smoking are set on bedrooms, not function suites")]
+    SuiteHasFeatures,
     #[error("Floor \"{floor}\" still has {count} room(s)/suite(s); move or delete them first")]
     FloorNotEmpty { floor: String, count: usize },
     #[error("Room type \"{room_type}\" is used by {count} room(s); change them first")]
@@ -59,6 +61,8 @@ pub enum ValidationError {
     NoAdults,
     #[error("Room {room} sleeps at most {max}")]
     TooManyGuests { room: String, max: u8 },
+    #[error("A room can park at most {max} cars")]
+    TooManyCars { max: u8 },
     #[error("\"{space}\" isn't a bedroom")]
     NotABedroom { space: String },
     #[error("Room {room} is out of service")]
@@ -132,6 +136,11 @@ pub fn validate_settings(settings: &PropertySettings) -> ValidationResult {
         return Err(ValidationError::InvalidCurrency);
     }
     require(&settings.timezone, "Time zone")?;
+    if settings.parking_price.0 < 0 {
+        return Err(ValidationError::NegativeAmount {
+            field: "Parking price",
+        });
+    }
     if settings.idle_lock_minutes > 240 {
         return Err(ValidationError::InvalidIdleLock);
     }
@@ -224,6 +233,9 @@ pub fn validate_space(space: &Space, floor: &Floor, all_spaces: &[Space]) -> Val
         (SpaceKind::Suite, Some(_)) => return Err(ValidationError::SuiteHasRoomType),
         _ => {}
     }
+    if space.kind == SpaceKind::Suite && !space.features.is_empty() {
+        return Err(ValidationError::SuiteHasFeatures);
+    }
     if space.rect.is_empty() {
         return Err(ValidationError::EmptyRect);
     }
@@ -280,9 +292,10 @@ pub fn validate_room_type_delete(room_type: &RoomType, all_spaces: &[Space]) -> 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::Money;
     use crate::grid::GridRect;
     use crate::ids::{FloorId, RoomTypeId, SpaceId};
-    use crate::property::SuiteCapacities;
+    use crate::property::{RoomFeature, SuiteCapacities};
 
     fn floor(cols: u16, rows: u16) -> Floor {
         Floor {
@@ -304,6 +317,7 @@ mod tests {
             suite_capacities: SuiteCapacities::default(),
             rect,
             out_of_service: false,
+            features: Vec::new(),
             notes: String::new(),
         }
     }
@@ -478,6 +492,39 @@ mod tests {
         );
         s.room_type_id = None;
         assert_eq!(validate_space(&s, &f, &[]), Ok(()));
+    }
+
+    #[test]
+    fn parking_price_cant_be_negative() {
+        let mut s = PropertySettings {
+            parking_price: Money(-100),
+            ..PropertySettings::default()
+        };
+        assert_eq!(
+            validate_settings(&s),
+            Err(ValidationError::NegativeAmount {
+                field: "Parking price"
+            })
+        );
+        s.parking_price = Money(800);
+        assert_eq!(validate_settings(&s), Ok(()));
+    }
+
+    #[test]
+    fn only_rooms_have_room_features() {
+        let f = floor(10, 10);
+        let mut r = room(&f, "101", GridRect::new(0, 0, 3, 2));
+        r.features = vec![RoomFeature::Wifi, RoomFeature::PetsAllowed];
+        assert_eq!(validate_space(&r, &f, &[]), Ok(()));
+
+        let mut s = room(&f, "Garden Suite", GridRect::new(0, 0, 3, 2));
+        s.kind = SpaceKind::Suite;
+        s.room_type_id = None;
+        s.features = vec![RoomFeature::Wifi];
+        assert_eq!(
+            validate_space(&s, &f, &[]),
+            Err(ValidationError::SuiteHasFeatures)
+        );
     }
 
     #[test]

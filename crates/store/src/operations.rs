@@ -175,11 +175,12 @@ impl OperationsRepo for SqliteStore {
         let (from, to) = (period.start.to_string(), period.end.to_string());
         let mut items: Vec<(NaiveDate, RevenueSource, Money)> = Vec::new();
 
-        // Rooms and board, as priced night by night when booked. A room
-        // with a hand-set price counts that price on its first night.
-        let nights: Vec<(String, i64, i64, Option<i64>, String)> = sqlx::query_as(
-            "SELECT n.night, n.room_price + n.supplements, n.board_price, r.price_override,
-                    r.check_in
+        // Rooms, board and parking, as priced night by night when booked.
+        // Parking counts as an extra. A room with a hand-set price counts that
+        // price (everything included) on its first night.
+        let nights: Vec<(String, i64, i64, i64, Option<i64>, String)> = sqlx::query_as(
+            "SELECT n.night, n.room_price + n.supplements, n.board_price, n.parking_price,
+                    r.price_override, r.check_in
              FROM room_nights n JOIN booking_rooms r ON r.id = n.booking_room_id
              WHERE n.night >= ? AND n.night < ?",
         )
@@ -187,7 +188,7 @@ impl OperationsRepo for SqliteStore {
         .bind(&to)
         .fetch_all(&mut *conn)
         .await?;
-        for (night, room, board, agreed, check_in) in nights {
+        for (night, room, board, parking, agreed, check_in) in nights {
             let night = date(&night)?;
             match agreed {
                 Some(price) if night == date(&check_in)? => {
@@ -197,6 +198,7 @@ impl OperationsRepo for SqliteStore {
                 None => {
                     items.push((night, RevenueSource::Rooms, Money(room)));
                     items.push((night, RevenueSource::Board, Money(board)));
+                    items.push((night, RevenueSource::Extras, Money(parking)));
                 }
             }
         }

@@ -5,7 +5,7 @@ const nav = (page: import("@playwright/test").Page, name: string) =>
 
 test.describe("function suites", () => {
   test("the day timeline shows today's hire and opens it", async ({ demoHotel: page }) => {
-    await nav(page, "Function suites");
+    await nav(page, "Suites and events");
     await expect(page.getByRole("heading", { level: 1, name: "Function suites" })).toBeVisible();
     const lane = page.getByRole("region", { name: "Garden Suite" });
     const meeting = lane.getByRole("link", { name: /Board meeting/ });
@@ -17,7 +17,7 @@ test.describe("function suites", () => {
   });
 
   test("each suite's hour lines line up with the time header", async ({ demoHotel: page }) => {
-    await nav(page, "Function suites");
+    await nav(page, "Suites and events");
     const header = page.locator(".ticks span");
     const lines = page.getByRole("region", { name: "Garden Suite" }).locator(".hour-lines span");
     await expect(header).toHaveCount(17);
@@ -29,7 +29,7 @@ test.describe("function suites", () => {
   });
 
   test("a booking that only clashes through setup time is refused", async ({ demoHotel: page }) => {
-    await nav(page, "Function suites");
+    await nav(page, "Suites and events");
     await page.getByRole("button", { name: "Book a suite" }).click();
     await expect(page.getByRole("heading", { level: 1, name: "Book a suite" })).toBeVisible();
     await page.getByRole("textbox", { name: "What it's for" }).fill("Lunch talk");
@@ -48,7 +48,7 @@ test.describe("function suites", () => {
   });
 
   test("the week view lists each day's hires", async ({ demoHotel: page }) => {
-    await nav(page, "Function suites");
+    await nav(page, "Suites and events");
     await page.getByRole("group", { name: "View" }).getByText("Week").click();
     await expect(page.getByRole("button", { name: "Next week" })).toBeVisible();
     await expect(page.getByRole("link", { name: /Board meeting/ })).toBeVisible();
@@ -68,7 +68,8 @@ test.describe("function suites", () => {
 
 test.describe("events", () => {
   test("the event page brings suites, catering and held rooms together", async ({ demoHotel: page }) => {
-    await nav(page, "Events");
+    await nav(page, "Suites and events");
+    await page.getByRole("button", { name: "Events", exact: true }).click();
     await page.getByRole("link", { name: "Hughes–Price wedding" }).click();
     await expect(page.getByRole("heading", { level: 1, name: "Hughes–Price wedding" })).toBeVisible();
 
@@ -85,7 +86,8 @@ test.describe("events", () => {
   });
 
   test("a new event holds a block of rooms", async ({ demoHotel: page }) => {
-    await nav(page, "Events");
+    await nav(page, "Suites and events");
+    await page.getByRole("button", { name: "Events", exact: true }).click();
     await page.getByRole("button", { name: "New event" }).click();
     await page.getByRole("textbox", { name: "Event name" }).fill("Davies retirement dinner");
     await page.getByRole("textbox", { name: "Last name" }).fill("Davies");
@@ -114,7 +116,8 @@ test("staff can build events but not set the group rate", async ({ page }) => {
   await page.getByLabel("PIN").fill("5678");
   await page.getByRole("button", { name: "Sign in" }).click();
 
-  await nav(page, "Events");
+  await nav(page, "Suites and events");
+  await page.getByRole("button", { name: "Events", exact: true }).click();
   await page.getByRole("link", { name: "Hughes–Price wedding" }).click();
   await page.getByRole("button", { name: "Edit event" }).click();
   await expect(page.getByText("only an admin can change it")).toBeVisible();
@@ -124,7 +127,7 @@ test("staff can build events but not set the group rate", async ({ page }) => {
 });
 
 test("the floor plan shows which suites are in use at a chosen time", async ({ demoHotel: page }) => {
-  await nav(page, "Floor plan");
+  await nav(page, "Rooms");
   const at = page.getByLabel("Suites at");
   await at.fill("11:00");
   const suite = page.getByRole("button", { name: "Garden Suite: in use, Board meeting" });
@@ -136,4 +139,16 @@ test("the floor plan shows which suites are in use at a chosen time", async ({ d
   const panel = page.getByRole("complementary", { name: "Garden Suite" });
   await expect(panel.getByRole("link", { name: "Board meeting" })).toBeVisible();
   await expect(panel).toContainText("10:00 to 12:00");
+});
+
+test("Suites and events is one menu item with a switch between the two", async ({ demoHotel: page }) => {
+  const item = page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Suites and events", exact: true });
+  await item.click();
+  await expect(page.getByRole("heading", { level: 1, name: "Function suites" })).toBeVisible();
+  const views = page.getByRole("group", { name: "Suites or events" });
+  await views.getByRole("button", { name: "Events", exact: true }).click();
+  await expect(page.getByRole("heading", { level: 1, name: "Events" })).toBeVisible();
+  await expect(item).toHaveAttribute("aria-current", "page");
+  await views.getByRole("button", { name: "Suites", exact: true }).click();
+  await expect(page.getByRole("heading", { level: 1, name: "Function suites" })).toBeVisible();
 });

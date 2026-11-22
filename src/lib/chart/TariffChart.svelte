@@ -6,6 +6,8 @@
   import { datesFrom, formatDay, isWeekend, today } from "../dates";
   import { ChartCell, ChartGrid, ChartHeader, ChartRow, ChartRowHeader } from "./chart-parts";
   import { barAt, layoutBars } from "./layout";
+  import FeatureIcons from "../rooms/FeatureIcons.svelte";
+  import { roomFeatureSummary } from "../rooms/features";
 
   interface Props {
     rooms: Space[];
@@ -41,7 +43,7 @@
     checked_out: "checked out",
   };
 
-  const ROOM_COL_PX = 104;
+  const ROOM_COL_PX = 136; // --room-col (8.5rem) at 16px
   const MIN_DAY_PX = 50;
   let width = $state(0);
 
@@ -100,7 +102,10 @@
       <ChartRow class="chart-row" data-out-of-service={room.out_of_service ? "" : undefined}>
         <ChartRowHeader class="room">
           <span class="fob">{room.name}</span>
-          <span class="room-type">{codes.get(room.room_type_id ?? "") ?? ""}</span>
+          <span class="room-about">
+            <span class="room-type">{codes.get(room.room_type_id ?? "") ?? ""}</span>
+            <span class="room-icons" title={roomFeatureSummary(room.features)}><FeatureIcons features={room.features} size={11} /></span>
+          </span>
         </ChartRowHeader>
         {#each dates as date, col (date)}
           <ChartCell
@@ -149,7 +154,7 @@
   }
 
   .scroll :global(.chart) {
-    --room-col: 6.5rem;
+    --room-col: 8.5rem;
     --day-col: 3.125rem;
     --row-h: 2.4rem;
     display: grid;
@@ -216,6 +221,17 @@
 
   .scroll :global(.room-name) {
     font-weight: 600;
+  }
+
+  .scroll :global(.room-about) {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+  }
+
+  .scroll :global(.room-icons) {
+    color: var(--ui-muted-foreground);
   }
 
   .scroll :global(.room-type) {

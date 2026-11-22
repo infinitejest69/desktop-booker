@@ -7,7 +7,7 @@
 
 use booker_core::{
     Floor, FloorId, GridRect, Money, PropertySettings, RoomType, RoomTypeId, Space, SpaceId,
-    SpaceKind, SuiteCapacities,
+    SpaceKind, SuiteCapacities, features_from_text,
 };
 use uuid::Uuid;
 
@@ -39,6 +39,7 @@ pub(crate) struct SettingsRow {
     check_in_time: String,
     check_out_time: String,
     idle_lock_minutes: i64,
+    parking_price: i64,
 }
 
 impl From<SettingsRow> for PropertySettings {
@@ -53,6 +54,7 @@ impl From<SettingsRow> for PropertySettings {
             check_in_time: r.check_in_time,
             check_out_time: r.check_out_time,
             idle_lock_minutes: u16::try_from(r.idle_lock_minutes).unwrap_or(15),
+            parking_price: Money(r.parking_price),
         }
     }
 }
@@ -126,6 +128,7 @@ pub(crate) struct SpaceRow {
     grid_w: i64,
     grid_h: i64,
     out_of_service: bool,
+    features: String,
     notes: String,
 }
 
@@ -162,6 +165,8 @@ impl TryFrom<SpaceRow> for Space {
                 h: int(r.grid_h, "spaces.grid_h")?,
             },
             out_of_service: r.out_of_service,
+            features: features_from_text(&r.features)
+                .map_err(|bad| StoreError::Corrupt(format!("unknown room feature {bad:?}")))?,
             notes: r.notes,
         })
     }

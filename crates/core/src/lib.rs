@@ -31,7 +31,8 @@ pub use backups::{
 };
 pub use booking::{
     Booking, BookingDetail, BookingListItem, BookingRoom, BookingSource, BookingStatus, ChartEntry,
-    Guest, Occupancy, RoomPricing, format_reference, free_rooms, validate_booking, validate_guest,
+    Guest, MAX_CARS, Occupancy, RoomPricing, format_reference, free_rooms, validate_booking,
+    validate_guest,
 };
 pub use dates::{DateRange, MAX_NIGHTS, iso_weekday};
 pub use email::{
@@ -63,7 +64,10 @@ pub use operations::{
     RoomKpis, anonymised, csv_money, housekeeping_after, housekeeping_today, merged_guest,
     occupancy_by_day, occupancy_total, revenue_by_month, room_kpis, to_csv,
 };
-pub use property::{Floor, PropertySettings, RoomType, Space, SpaceKind, SuiteCapacities};
+pub use property::{
+    Floor, PropertySettings, RoomFeature, RoomType, Space, SpaceKind, SuiteCapacities,
+    features_from_text, features_to_text,
+};
 pub use rates::{
     Adjustment, BoardOption, NightPrice, RateRule, StayQuote, quote_stay, room_rate_for_night,
     validate_board_option, validate_rate_rule,

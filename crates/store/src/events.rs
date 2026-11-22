@@ -698,6 +698,7 @@ async fn sync_block(
                     children: 0,
                     board_option_id: None,
                     price_override: Some(price),
+                    cars: 0,
                 }],
             };
             write_booking(tx, &booking, &organiser).await?;

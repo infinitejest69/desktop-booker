@@ -170,6 +170,7 @@ struct BookingRoomRow {
     children: i64,
     board_option_id: Option<String>,
     price_override: Option<i64>,
+    cars: i64,
 }
 
 impl TryFrom<BookingRoomRow> for BookingRoom {
@@ -191,6 +192,7 @@ impl TryFrom<BookingRoomRow> for BookingRoom {
                 .transpose()?
                 .map(BoardOptionId),
             price_override: r.price_override.map(Money),
+            cars: int(r.cars, "booking_rooms.cars")?,
         })
     }
 }
@@ -202,6 +204,7 @@ struct NightRow {
     room_price: i64,
     supplements: i64,
     board_price: i64,
+    parking_price: i64,
     total: i64,
 }
 
@@ -283,7 +286,8 @@ pub(crate) async fn load_booking(
     .await?;
     let Some(row) = row else { return Ok(None) };
     let rooms: Vec<BookingRoomRow> = sqlx::query_as(
-        "SELECT id, space_id, check_in, check_out, adults, children, board_option_id, price_override
+        "SELECT id, space_id, check_in, check_out, adults, children, board_option_id, price_override,
+                cars
          FROM booking_rooms WHERE booking_id = ? ORDER BY sort_order",
     )
     .bind(id.to_string())
@@ -309,7 +313,8 @@ async fn load_nights(
     booking: BookingId,
 ) -> StoreResult<HashMap<BookingRoomId, Vec<NightPrice>>> {
     let rows: Vec<NightRow> = sqlx::query_as(
-        "SELECT n.booking_room_id, n.night, n.room_price, n.supplements, n.board_price, n.total
+        "SELECT n.booking_room_id, n.night, n.room_price, n.supplements, n.board_price,
+                n.parking_price, n.total
          FROM room_nights n JOIN booking_rooms r ON r.id = n.booking_room_id
          WHERE r.booking_id = ? ORDER BY n.night",
     )
@@ -325,6 +330,7 @@ async fn load_nights(
                 room: Money(r.room_price),
                 supplements: Money(r.supplements),
                 board: Money(r.board_price),
+                parking: Money(r.parking_price),
                 total: Money(r.total),
                 rules: Vec::new(),
             });
@@ -419,6 +425,16 @@ fn same_stay(old: &BookingRoom, new: &BookingRoom) -> bool {
         && old.adults == new.adults
         && old.children == new.children
         && old.board_option_id == new.board_option_id
+        && old.cars == new.cars
+}
+
+/// The hotel's parking price per car per night (zero until it's set).
+pub(crate) async fn load_parking_price(conn: &mut SqliteConnection) -> StoreResult<Money> {
+    let price: Option<i64> =
+        sqlx::query_scalar("SELECT parking_price FROM property_settings WHERE id = 1")
+            .fetch_optional(conn)
+            .await?;
+    Ok(Money(price.unwrap_or(0)))
 }
 
 /// Inserts or updates a guest (already validated) inside the caller's transaction.
@@ -454,6 +470,7 @@ pub(crate) async fn write_booking(
     let room_types = load_room_types(tx).await?;
     let rules = load_rate_rules(tx).await?;
     let boards = load_boards(tx).await?;
+    let parking_price = load_parking_price(tx).await?;
 
     let from = booking.rooms.iter().map(|r| r.stay.start).min();
     let to = booking.rooms.iter().map(|r| r.stay.end).max();
@@ -506,8 +523,9 @@ pub(crate) async fn write_booking(
     for (order, room) in booking.rooms.iter().enumerate() {
         sqlx::query(
             "INSERT INTO booking_rooms (id, booking_id, space_id, check_in, check_out, adults,
-                                        children, board_option_id, price_override, sort_order)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                                        children, board_option_id, price_override, sort_order,
+                                        cars)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .bind(room.id.to_string())
         .bind(booking.id.to_string())
@@ -519,6 +537,7 @@ pub(crate) async fn write_booking(
         .bind(room.board_option_id.map(|b| b.to_string()))
         .bind(room.price_override.map(|m| m.0))
         .bind(i64::try_from(order).unwrap_or(i64::MAX))
+        .bind(i64::from(room.cars))
         .execute(&mut *tx)
         .await?;
 
@@ -547,6 +566,8 @@ pub(crate) async fn write_booking(
                     room.stay,
                     room.adults,
                     room.children,
+                    room.cars,
+                    parking_price,
                 )
                 .nights
             }
@@ -554,8 +575,8 @@ pub(crate) async fn write_booking(
         for n in nights {
             let inserted = sqlx::query(
                 "INSERT INTO room_nights (booking_room_id, space_id, night, room_price,
-                                          supplements, board_price, total)
-                 VALUES (?, ?, ?, ?, ?, ?, ?)",
+                                          supplements, board_price, parking_price, total)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             )
             .bind(room.id.to_string())
             .bind(room.space_id.to_string())
@@ -563,6 +584,7 @@ pub(crate) async fn write_booking(
             .bind(n.room.0)
             .bind(n.supplements.0)
             .bind(n.board.0)
+            .bind(n.parking.0)
             .bind(n.total.0)
             .execute(&mut *tx)
             .await;
@@ -806,6 +828,7 @@ impl BookingRepo for SqliteStore {
         adults: u8,
         children: u8,
         board: Option<BoardOptionId>,
+        cars: u8,
     ) -> StoreResult<StayQuote> {
         stay.validate()?;
         let mut conn = self.pool.acquire().await?;
@@ -820,7 +843,17 @@ impl BookingRepo for SqliteStore {
         let rules = load_rate_rules(&mut conn).await?;
         let boards = load_boards(&mut conn).await?;
         let board = board.and_then(|b| boards.iter().find(|x| x.id == b));
-        Ok(quote_stay(room_type, &rules, board, stay, adults, children))
+        let parking_price = load_parking_price(&mut conn).await?;
+        Ok(quote_stay(
+            room_type,
+            &rules,
+            board,
+            stay,
+            adults,
+            children,
+            cars,
+            parking_price,
+        ))
     }
 
     async fn free_rooms(

@@ -23,6 +23,7 @@
   import { formatMoney } from "#lib/format.ts";
   import type { Adjustment } from "#lib/bindings/Adjustment.ts";
   import type { BoardOption } from "#lib/bindings/BoardOption.ts";
+  import type { PropertySettings } from "#lib/bindings/PropertySettings.ts";
   import type { RateRule } from "#lib/bindings/RateRule.ts";
   import type { RoomType } from "#lib/bindings/RoomType.ts";
 
@@ -80,13 +81,32 @@
     editRule(blankRule());
   }
 
+  /** Hotel settings, for the parking price (saved with the rest of the settings). */
+  let settings = $state<PropertySettings | null>(null);
+  let parkingPrice = $state(0);
+
+  async function saveParking(event: SubmitEvent) {
+    event.preventDefault();
+    if (!settings) return;
+    try {
+      const next = { ...$state.snapshot(settings), parking_price: parkingPrice };
+      await api.saveSettings(next);
+      settings = next;
+      toast.success(parkingPrice ? `Parking: ${formatMoney(parkingPrice)} per car per night` : "Parking is free");
+    } catch (error) {
+      toast.error("Couldn't save the parking price", { description: errorMessage(error) });
+    }
+  }
+
   async function load() {
     try {
-      [roomTypes, rules, boards] = await Promise.all([
+      [roomTypes, rules, boards, settings] = await Promise.all([
         api.listRoomTypes(),
         api.listRateRules(),
         api.listBoardOptions(),
+        api.getSettings(),
       ]);
+      parkingPrice = settings.parking_price;
     } catch (error) {
       toast.error("Couldn't load rates", { description: errorMessage(error) });
     }
@@ -340,9 +360,25 @@
       </div>
     </form>
   </div>
+
+  <h2 style="margin-top: 2.5rem">Parking</h2>
+  <p class="page-intro">
+    Charged per car per night when a booking asks for parking, and shown on the bill as its own line.
+    Leave it at £0.00 if parking is free. Bookings already made keep the price they were given.
+  </p>
+  <form class="stack panel parking" onsubmit={saveParking} aria-label="Parking">
+    <MoneyField label="Per car per night" bind:value={parkingPrice} />
+    <div class="row">
+      <Button type="submit" data-variant="solid" disabled={!settings}>Save parking price</Button>
+    </div>
+  </form>
 </div>
 
 <style>
+  .parking {
+    max-width: 24rem;
+  }
+
   :global(.days) {
     display: flex;
     flex-wrap: wrap;

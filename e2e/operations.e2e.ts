@@ -12,7 +12,7 @@ test("checking a guest out leaves the room dirty until housekeeping marks it", a
   await page.getByRole("button", { name: "Check out" }).click();
   await expect(page.getByText(/Checked out/).first()).toBeVisible();
 
-  await nav(page, "Floor plan");
+  await nav(page, "Rooms");
   await page.getByRole("group", { name: "View" }).getByText("Cards").click();
   const room = page.getByRole("listitem", { name: "Room G03" });
   await expect(room).toContainText("Dirty");
@@ -22,8 +22,8 @@ test("checking a guest out leaves the room dirty until housekeeping marks it", a
 });
 
 test("rooms slept in last night start the day dirty, and a floor can be marked clean", async ({ demoHotel: page }) => {
-  await nav(page, "Floor plan");
-  await expect(page.getByRole("heading", { level: 1, name: "Floor plan and housekeeping" })).toBeVisible();
+  await nav(page, "Rooms");
+  await expect(page.getByRole("heading", { level: 1, name: "Rooms" })).toBeVisible();
   // Tom has been in G03 since yesterday.
   const g03 = page.getByRole("button", { name: /^Room G03: In house, dirty/ });
   await expect(g03).toBeVisible();
@@ -49,12 +49,12 @@ test("the old housekeeping link opens the cards", async ({ demoHotel: page }) =>
 
 test("the dashboard shows each floor with rooms to clean", async ({ demoHotel: page }) => {
   const hotel = page.getByRole("region", { name: "The hotel today" });
-  await expect(hotel.getByRole("link", { name: "Ground floor: open the floor plan" })).toBeVisible();
+  await expect(hotel.getByRole("link", { name: "Ground floor: open Rooms" })).toBeVisible();
   await expect(hotel.getByRole("listitem", { name: /G03: In house, dirty/ }).or(hotel.getByTitle(/G03: In house, dirty/))).toBeVisible();
 });
 
 test("the daily lists show today's arrivals with board", async ({ demoHotel: page }) => {
-  await nav(page, "Floor plan");
+  await nav(page, "Rooms");
   await page.getByRole("link", { name: "Daily lists" }).click();
   const arrivals = page.getByRole("region", { name: "Arrivals" });
   await expect(arrivals.getByRole("row", { name: /Margaret Hughes/ })).toContainText("Bed & breakfast");

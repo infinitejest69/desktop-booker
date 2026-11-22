@@ -88,6 +88,7 @@ pub trait BookingRepo {
         adults: u8,
         children: u8,
         board: Option<BoardOptionId>,
+        cars: u8,
     ) -> impl Future<Output = StoreResult<StayQuote>> + Send;
     /// Bedrooms free for the whole stay, ignoring one booking (the one being edited).
     fn free_rooms(

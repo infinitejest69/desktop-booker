@@ -80,13 +80,16 @@
           ? `, ${room.children} child${room.children === 1 ? "" : "ren"}`
           : ""}
       </p>
-      <p class="board">Board: <strong>{boardName(room.board_option_id, boards)}</strong></p>
+      <p class="board">
+        Board: <strong>{boardName(room.board_option_id, boards)}</strong>{#if room.cars}, parking for
+          <strong>{room.cars} car{room.cars === 1 ? "" : "s"}</strong>{/if}
+      </p>
       {#if pricing && pricing.nights.length}
         {#if compact}
           <p>{formatMoney(pricing.total)}{room.price_override !== null ? " (set by hand)" : ""}</p>
         {:else}
           <table class="list">
-            <thead><tr><th>Night</th><th>Room</th><th>Extras</th><th>Board</th><th>Total</th></tr></thead>
+            <thead><tr><th>Night</th><th>Room</th><th>Extras</th><th>Board</th><th>Parking</th><th>Total</th></tr></thead>
             <tbody>
               {#each pricing.nights as n (n.night)}
                 <tr>
@@ -94,6 +97,7 @@
                   <td>{formatMoney(n.room)}</td>
                   <td>{formatMoney(n.supplements)}</td>
                   <td>{formatMoney(n.board)}</td>
+                  <td>{formatMoney(n.parking)}</td>
                   <td>{formatMoney(n.total)}</td>
                 </tr>
               {/each}

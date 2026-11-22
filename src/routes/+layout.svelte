@@ -105,15 +105,16 @@
     if (href === "/") return path === "/";
     // Bookings covers both its views: the calendar (/chart) and the list (/bookings).
     if (href === "/chart") return under("/chart") || under("/bookings");
+    // Suites and events covers the suite diary (/suites) and the events list (/events).
+    if (href === "/suites") return under("/suites") || under("/events");
     return under(href);
   }
 
   const main = [
     { href: "/", label: "Dashboard" },
     { href: "/chart", label: "Bookings" },
-    { href: "/suites", label: "Function suites" },
-    { href: "/events", label: "Events" },
-    { href: "/floor-plan", label: "Floor plan" },
+    { href: "/suites", label: "Suites and events" },
+    { href: "/floor-plan", label: "Rooms" },
     { href: "/guests", label: "Guests" },
   ];
   const hotel = [

@@ -5,8 +5,8 @@ use std::str::FromStr;
 
 use booker_core::{
     Floor, FloorId, PropertySettings, RoomType, RoomTypeId, Space, SpaceId, User, UserId,
-    validate_floor, validate_floor_delete, validate_room_type, validate_room_type_delete,
-    validate_settings, validate_space,
+    features_to_text, validate_floor, validate_floor_delete, validate_room_type,
+    validate_room_type_delete, validate_settings, validate_space,
 };
 use sqlx::SqliteConnection;
 use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePool, SqlitePoolOptions};
@@ -134,7 +134,7 @@ macro_rules! select_spaces {
     () => {
         "SELECT id, floor_id, kind, name, room_type_id,
                 cap_theatre, cap_boardroom, cap_banquet, cap_cabaret, cap_reception,
-                grid_x, grid_y, grid_w, grid_h, out_of_service, notes
+                grid_x, grid_y, grid_w, grid_h, out_of_service, features, notes
          FROM spaces WHERE deleted_at IS NULL"
     };
 }
@@ -174,7 +174,7 @@ impl SettingsRepo for SqliteStore {
     async fn get_settings(&self) -> StoreResult<PropertySettings> {
         let row: Option<SettingsRow> = sqlx::query_as(
             "SELECT hotel_name, address, phone, email, currency, timezone,
-                    check_in_time, check_out_time, idle_lock_minutes
+                    check_in_time, check_out_time, idle_lock_minutes, parking_price
              FROM property_settings WHERE id = 1",
         )
         .fetch_optional(&self.pool)
@@ -189,14 +189,15 @@ impl SettingsRepo for SqliteStore {
         sqlx::query(
             "INSERT INTO property_settings
                 (id, hotel_name, address, phone, email, currency, timezone, check_in_time,
-                 check_out_time, idle_lock_minutes)
-             VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 check_out_time, idle_lock_minutes, parking_price)
+             VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
              ON CONFLICT (id) DO UPDATE SET
                 hotel_name = excluded.hotel_name, address = excluded.address,
                 phone = excluded.phone, email = excluded.email,
                 currency = excluded.currency, timezone = excluded.timezone,
                 check_in_time = excluded.check_in_time, check_out_time = excluded.check_out_time,
                 idle_lock_minutes = excluded.idle_lock_minutes,
+                parking_price = excluded.parking_price,
                 updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')",
         )
         .bind(settings.hotel_name.trim())
@@ -208,6 +209,7 @@ impl SettingsRepo for SqliteStore {
         .bind(settings.check_in_time.trim())
         .bind(settings.check_out_time.trim())
         .bind(i64::from(settings.idle_lock_minutes))
+        .bind(settings.parking_price.0)
         .execute(&mut *tx)
         .await?;
         record(
@@ -429,8 +431,8 @@ impl SpaceRepo for SqliteStore {
         sqlx::query(
             "INSERT INTO spaces (id, floor_id, kind, name, room_type_id,
                 cap_theatre, cap_boardroom, cap_banquet, cap_cabaret, cap_reception,
-                grid_x, grid_y, grid_w, grid_h, out_of_service, notes)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                grid_x, grid_y, grid_w, grid_h, out_of_service, features, notes)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
              ON CONFLICT (id) DO UPDATE SET
                 floor_id = excluded.floor_id, kind = excluded.kind, name = excluded.name,
                 room_type_id = excluded.room_type_id,
@@ -439,7 +441,8 @@ impl SpaceRepo for SqliteStore {
                 cap_reception = excluded.cap_reception,
                 grid_x = excluded.grid_x, grid_y = excluded.grid_y,
                 grid_w = excluded.grid_w, grid_h = excluded.grid_h,
-                out_of_service = excluded.out_of_service, notes = excluded.notes,
+                out_of_service = excluded.out_of_service, features = excluded.features,
+                notes = excluded.notes,
                 updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')",
         )
         .bind(space.id.to_string())
@@ -457,6 +460,7 @@ impl SpaceRepo for SqliteStore {
         .bind(i64::from(space.rect.w))
         .bind(i64::from(space.rect.h))
         .bind(space.out_of_service)
+        .bind(features_to_text(&space.features))
         .bind(space.notes.trim())
         .execute(&mut *tx)
         .await?;

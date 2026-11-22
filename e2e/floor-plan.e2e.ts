@@ -3,11 +3,24 @@ import { expect, openSetup, rectOf, test } from "./fixtures";
 const CELL = 28;
 
 test("empty hotel offers the demo, which shows on the floor plan", async ({ demoHotel: page }) => {
-  await page.getByRole("link", { name: "Floor plan", exact: true }).click();
+  await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Rooms", exact: true }).click();
   await expect(page.getByText("4 bedrooms and 1 function suites on 1 floor")).toBeVisible();
   const rooms = page.getByRole("list", { name: "Ground floor rooms" });
   await expect(rooms.getByRole("listitem")).toHaveCount(5);
   await expect(rooms.getByRole("listitem").filter({ hasText: "G04" })).toContainText("Out of service");
+});
+
+test("Rooms shows every floor at once, one after another", async ({ demoHotel: page }) => {
+  // A second floor, added straight to the fake database (the menu link keeps the page loaded).
+  await page.evaluate(() => {
+    const db = (window as unknown as { __fakeDb: { floors: object[] } }).__fakeDb;
+    db.floors.push({ id: crypto.randomUUID(), name: "First floor", level: 1, grid_cols: 24, grid_rows: 10 });
+  });
+  await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Rooms", exact: true }).click();
+  await expect(page.getByRole("heading", { level: 1, name: "Rooms" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 2, name: "Ground floor" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 2, name: "First floor" })).toBeVisible();
+  await expect(page.getByRole("tab")).toHaveCount(0);
 });
 
 test.describe("layout editor", () => {

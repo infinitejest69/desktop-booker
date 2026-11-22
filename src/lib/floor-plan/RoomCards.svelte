@@ -3,6 +3,7 @@
   import type { HousekeepingStatus } from "../bindings/HousekeepingStatus";
   import type { Space } from "../bindings/Space";
   import { roomStatusLabel, type RoomStatus } from "./status";
+  import FeatureIcons from "../rooms/FeatureIcons.svelte";
 
   interface Props {
     rooms: Space[];
@@ -26,6 +27,7 @@
         <span class="state">{room.out_of_service ? "Out of service" : hkLabel[status]}</span>
       </div>
       <p class="muted">{roomStatusLabel[availability]}</p>
+      <FeatureIcons features={room.features} />
       {#if !room.out_of_service}
         <ToggleGroup
           aria-label={`Housekeeping for room ${room.name}`}

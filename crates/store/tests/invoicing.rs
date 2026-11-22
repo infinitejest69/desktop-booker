@@ -58,6 +58,7 @@ async fn fixture() -> Fixture {
         suite_capacities: SuiteCapacities::default(),
         rect: GridRect::new(0, 0, 3, 3),
         out_of_service: false,
+        features: Vec::new(),
         notes: String::new(),
     };
     store.save_space(&room).await.unwrap();
@@ -73,6 +74,7 @@ async fn fixture() -> Fixture {
         },
         rect: GridRect::new(10, 0, 6, 4),
         out_of_service: false,
+        features: Vec::new(),
         notes: String::new(),
     };
     store.save_space(&suite).await.unwrap();
@@ -145,6 +147,7 @@ async fn fixture() -> Fixture {
             children: 0,
             board_option_id: Some(bb.id),
             price_override: None,
+            cars: 0,
         }],
     };
     store.save_booking(&booking, &guest).await.unwrap();

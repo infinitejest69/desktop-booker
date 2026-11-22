@@ -24,6 +24,8 @@ pub struct PropertySettings {
     pub check_out_time: String,
     /// Lock the app after this many idle minutes (0 = never).
     pub idle_lock_minutes: u16,
+    /// Parking, per car per night. Zero until the hotel sets a price.
+    pub parking_price: Money,
 }
 
 impl Default for PropertySettings {
@@ -38,6 +40,7 @@ impl Default for PropertySettings {
             check_in_time: "15:00".into(),
             check_out_time: "11:00".into(),
             idle_lock_minutes: 15,
+            parking_price: Money::ZERO,
         }
     }
 }
@@ -82,6 +85,70 @@ pub struct RoomType {
 pub enum SpaceKind {
     Room,
     Suite,
+}
+
+/// Something a bedroom offers (or allows) that guests may ask for.
+/// A room without `Smoking` is non-smoking.
+///
+/// `Ord` follows the order written here, which is also the order they're shown in.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
+pub enum RoomFeature {
+    Wifi,
+    PetsAllowed,
+    /// Accessible for wheelchair users (step-free, accessible bathroom).
+    Accessible,
+    Smoking,
+}
+
+impl RoomFeature {
+    pub const ALL: [RoomFeature; 4] = [
+        RoomFeature::Wifi,
+        RoomFeature::PetsAllowed,
+        RoomFeature::Accessible,
+        RoomFeature::Smoking,
+    ];
+
+    /// The name stored in the database (the same as the JSON name).
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            RoomFeature::Wifi => "wifi",
+            RoomFeature::PetsAllowed => "pets_allowed",
+            RoomFeature::Accessible => "accessible",
+            RoomFeature::Smoking => "smoking",
+        }
+    }
+}
+
+/// Features as stored in one text column: `"wifi,pets_allowed"`, in a fixed
+/// order and without repeats, so the same room always saves the same text.
+pub fn features_to_text(features: &[RoomFeature]) -> String {
+    let mut list = features.to_vec();
+    list.sort();
+    list.dedup(); // removes repeats, which `sort` has put next to each other
+    list.iter()
+        .map(|f| f.as_str())
+        .collect::<Vec<_>>()
+        .join(",")
+}
+
+/// Reads [`features_to_text`]'s text back. An unknown name is returned as the error.
+pub fn features_from_text(text: &str) -> Result<Vec<RoomFeature>, String> {
+    let mut list = text
+        .split(',')
+        .filter(|part| !part.is_empty())
+        .map(|part| {
+            RoomFeature::ALL
+                .into_iter()
+                .find(|f| f.as_str() == part)
+                .ok_or_else(|| part.to_string())
+        })
+        // Collecting into `Result<Vec<_>, _>` stops at the first `Err`.
+        .collect::<Result<Vec<_>, _>>()?;
+    list.sort();
+    list.dedup();
+    Ok(list)
 }
 
 /// Seated or standing capacity of a function suite for each layout.
@@ -129,6 +196,8 @@ pub struct Space {
     pub rect: GridRect,
     /// Temporarily unavailable (maintenance etc.).
     pub out_of_service: bool,
+    /// What a bedroom offers; always empty for suites.
+    pub features: Vec<RoomFeature>,
     pub notes: String,
 }
 
@@ -145,6 +214,44 @@ mod tests {
         };
         assert_eq!(caps.max(), 120);
         assert_eq!(SuiteCapacities::default().max(), 0);
+    }
+
+    #[test]
+    fn room_features_are_stored_as_text_sorted_without_repeats() {
+        let features = [
+            RoomFeature::Smoking,
+            RoomFeature::Wifi,
+            RoomFeature::Smoking,
+        ];
+        assert_eq!(features_to_text(&features), "wifi,smoking");
+        assert_eq!(features_to_text(&[]), "");
+    }
+
+    #[test]
+    fn room_features_read_back_from_text() {
+        assert_eq!(
+            features_from_text("pets_allowed,wifi"),
+            Ok(vec![RoomFeature::Wifi, RoomFeature::PetsAllowed])
+        );
+        assert_eq!(features_from_text(""), Ok(vec![]));
+        assert_eq!(
+            features_from_text("wifi,jacuzzi"),
+            Err("jacuzzi".to_string())
+        );
+    }
+
+    #[test]
+    fn every_feature_round_trips() {
+        let text = features_to_text(&RoomFeature::ALL);
+        assert_eq!(features_from_text(&text), Ok(RoomFeature::ALL.to_vec()));
+    }
+
+    #[test]
+    fn room_feature_serialises_snake_case() {
+        assert_eq!(
+            serde_json::to_string(&RoomFeature::PetsAllowed).unwrap(),
+            "\"pets_allowed\""
+        );
     }
 
     #[test]

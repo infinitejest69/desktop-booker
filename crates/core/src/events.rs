@@ -540,6 +540,7 @@ mod tests {
             suite_capacities: SuiteCapacities::default(),
             rect: GridRect::new(0, 0, 1, 1),
             out_of_service: false,
+            features: Vec::new(),
             notes: String::new(),
         };
         let spaces = [

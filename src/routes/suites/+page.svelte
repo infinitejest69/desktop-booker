@@ -7,6 +7,8 @@
   import { goto } from "$app/navigation";
   import { page } from "$app/state";
   import { api, errorMessage } from "#lib/api.ts";
+  import ViewSwitch from "#lib/nav/ViewSwitch.svelte";
+  import { functionViews } from "#lib/nav/views.ts";
   import type { Space } from "#lib/bindings/Space.ts";
   import type { SuiteBookingEntry } from "#lib/bindings/SuiteBookingEntry.ts";
   import { addDays, datesFrom, formatDay, isWeekend, today } from "#lib/dates.ts";
@@ -74,6 +76,7 @@
   </div>
 
   <div class="row toolbar" role="toolbar" aria-label="Choose the days shown">
+    <ViewSwitch views={functionViews} current="Suites" label="Suites or events" />
     <Field>
       <FieldLabel>{week ? "Week from" : "Day"}</FieldLabel>
       <Input type="date" value={day} onValueChange={(v) => v && (day = v)} />

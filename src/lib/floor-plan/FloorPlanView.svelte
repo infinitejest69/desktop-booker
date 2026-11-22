@@ -3,6 +3,8 @@
   import type { HousekeepingStatus } from "../bindings/HousekeepingStatus";
   import type { Space } from "../bindings/Space";
   import { roomStatusLabel, type RoomStatus } from "./status";
+  import FeatureIcons from "../rooms/FeatureIcons.svelte";
+  import { roomFeatureSummary } from "../rooms/features";
 
   interface Props {
     floor: Floor;
@@ -48,7 +50,7 @@
       return `${space.name}: ${space.out_of_service ? "Out of service" : use ? `in use, ${use}` : "free"}`;
     }
     const hk = hkOf(space);
-    return `Room ${space.name}: ${roomStatusLabel[statusOf(space)]}${hk ? `, ${hkLabel[hk].toLowerCase()}` : ""}`;
+    return `Room ${space.name}: ${roomStatusLabel[statusOf(space)]}${hk ? `, ${hkLabel[hk].toLowerCase()}` : ""}. ${roomFeatureSummary(space.features)}`;
   }
 
   function statusOf(space: Space): RoomStatus {
@@ -87,6 +89,9 @@
           <span class="meta">
             {space.kind === "suite" ? "Suite" : (typeCodes.get(space.room_type_id ?? "") ?? "")}
           </span>
+          {#if space.kind === "room" && space.features.length}
+            <span class="icons" aria-hidden="true"><FeatureIcons features={space.features} size={12} /></span>
+          {/if}
           {#if space.kind === "room" && statusOf(space) !== "free"}
             <span class="state">{roomStatusLabel[statusOf(space)]}</span>
           {:else if space.kind === "suite" && suiteUse?.has(space.id)}
@@ -260,5 +265,10 @@
     overflow: hidden;
     clip-path: inset(50%);
     white-space: nowrap;
+  }
+
+  .icons {
+    display: inline-flex;
+    color: var(--ink-muted);
   }
 </style>

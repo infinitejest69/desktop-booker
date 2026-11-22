@@ -13,6 +13,7 @@
       check_in_time: "15:00",
       check_out_time: "11:00",
       idle_lock_minutes: 15,
+      parking_price: 0,
     },
     floors: [],
     types: [],
@@ -99,7 +100,7 @@
 
   const boardNameOf = (id) => db.boards.find((b) => b.id === id)?.name ?? null;
 
-  function quote(spaceId, stay, adults, children, boardId) {
+  function quote(spaceId, stay, adults, children, boardId, cars = 0) {
     const space = db.spaces.find((s) => s.id === spaceId);
     const type = db.types.find((t) => t.id === space?.room_type_id);
     if (!type) throw { kind: "not_found", message: "Room not found" };
@@ -107,12 +108,14 @@
     const extra =
       Math.max(adults - type.default_occupancy, 0) * type.extra_adult_rate + children * type.child_rate;
     const boardPrice = board ? board.adult_price * adults + board.child_price * children : 0;
+    const parking = (db.settings.parking_price ?? 0) * cars;
     const nights = nightsOf(stay).map((night) => ({
       night,
       room: type.base_rate,
       supplements: extra,
       board: boardPrice,
-      total: type.base_rate + extra + boardPrice,
+      parking,
+      total: type.base_rate + extra + boardPrice + parking,
       rules: [],
     }));
     return { nights, total: nights.reduce((s, n) => s + n.total, 0) };
@@ -133,7 +136,7 @@
     const guest = db.guests.find((g) => g.id === b.booking.guest_id);
     const pricing = b.booking.rooms.map((r) => {
       const nights = holds(b.booking.status)
-        ? quote(r.space_id, r.stay, r.adults, r.children, r.board_option_id).nights
+        ? quote(r.space_id, r.stay, r.adults, r.children, r.board_option_id, r.cars ?? 0).nights
         : [];
       const calculated = nights.reduce((s, n) => s + n.total, 0);
       return { booking_room_id: r.id, nights, calculated, total: r.price_override ?? calculated };
@@ -187,6 +190,7 @@
         suite_capacities: noCaps,
         rect: { x: i * 3, y: 0, w: 3, h: 4 },
         out_of_service: i === 3,
+        features: [["wifi", "accessible"], ["wifi", "pets_allowed"], ["wifi"], ["smoking"]][i],
         notes: "",
       });
     db.spaces.push({
@@ -198,6 +202,7 @@
       suite_capacities: { ...noCaps, theatre: 120, banquet: 80 },
       rect: { x: 0, y: 6, w: 10, h: 4 },
       out_of_service: false,
+      features: [],
       notes: "",
     });
     db.boards = [
@@ -232,6 +237,7 @@
               children: 0,
               board_option_id: boardId,
               price_override: null,
+              cars: 0,
             },
           ],
         },
@@ -380,7 +386,7 @@
           status: "provisional",
           source: "other",
           notes: `Held for ${ev.name}`,
-          rooms: [{ id: id(), space_id: space.id, stay: block.stay, adults: 2, children: 0, board_option_id: null, price_override: price }],
+          rooms: [{ id: id(), space_id: space.id, stay: block.stay, adults: 2, children: 0, board_option_id: null, price_override: price, cars: 0 }],
         },
         organiser,
       );
@@ -581,6 +587,8 @@
         (o) => o.id !== space.id && o.floor_id === space.floor_id && ov(o.rect, space.rect),
       );
       if (clash) err(`"${space.name}" overlaps "${clash.name}"`);
+      if (space.kind === "suite" && space.features.length)
+        err("Wifi, pets, accessible and smoking are set on bedrooms, not function suites");
       db.spaces = db.spaces.filter((s) => s.id !== space.id).concat(space);
     },
     delete_space: ({ id }) => {
@@ -607,8 +615,8 @@
       db.guests.filter((g) =>
         `${g.first_name} ${g.last_name} ${g.email}`.toLowerCase().includes(query.toLowerCase()),
       ),
-    quote_room: ({ spaceId, stay, adults, children, boardOptionId }) =>
-      quote(spaceId, stay, adults, children, boardOptionId),
+    quote_room: ({ spaceId, stay, adults, children, boardOptionId, cars }) =>
+      quote(spaceId, stay, adults, children, boardOptionId, cars),
     free_rooms: ({ stay, ignoreBooking }) =>
       db.spaces
         .filter((s) => s.kind === "room" && !s.out_of_service && !occupied(s.id, stay, ignoreBooking))
