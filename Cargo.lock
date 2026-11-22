@@ -395,7 +395,7 @@ dependencies = [
 
 [[package]]
 name = "booker-core"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "chrono",
  "proptest",
@@ -408,7 +408,7 @@ dependencies = [
 
 [[package]]
 name = "booker-services"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "argon2",
  "booker-core",
@@ -419,7 +419,7 @@ dependencies = [
 
 [[package]]
 name = "booker-store"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "booker-core",
  "chrono",
@@ -982,7 +982,7 @@ dependencies = [
 
 [[package]]
 name = "desktop-booker"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "booker-core",
  "booker-services",

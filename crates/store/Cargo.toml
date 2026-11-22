@@ -7,7 +7,7 @@ license-file.workspace = true
 publish.workspace = true
 
 [dependencies]
-booker-core = { version = "0.1.0", path = "../core" }
+booker-core = { path = "../core" }
 chrono = { version = "0.4.45", default-features = false, features = ["clock", "std"] }
 serde = "1.0.229"
 serde_json = "1.0.154"
