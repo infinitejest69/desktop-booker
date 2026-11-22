@@ -162,8 +162,8 @@ async fn email_settings_templates_and_log_round_trip() {
     let gmail = EmailSettings {
         host: "smtp.gmail.com".into(),
         port: 587,
-        username: "grange@gmail.com".into(),
-        from_address: "grange@gmail.com".into(),
+        username: "grange.hotel@example.com".into(),
+        from_address: "grange.hotel@example.com".into(),
         from_name: "The Grange".into(),
     };
     store.save_email_settings(&gmail).await.unwrap();

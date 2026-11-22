@@ -1,0 +1,19 @@
+name: Idea or feature request
+description: Something that would help at your hotel
+labels: [enhancement]
+body:
+  - type: textarea
+    id: need
+    attributes:
+      label: What would you like to do?
+      description: Describe the job at the desk, not just the button. For example "take a deposit for a group in one go".
+    validations:
+      required: true
+  - type: textarea
+    id: now
+    attributes:
+      label: How do you manage today?
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else

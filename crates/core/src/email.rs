@@ -247,8 +247,8 @@ mod tests {
         let gmail = EmailSettings {
             host: "smtp.gmail.com".into(),
             port: 587,
-            username: "grange@gmail.com".into(),
-            from_address: "grange@gmail.com".into(),
+            username: "grange.hotel@example.com".into(),
+            from_address: "grange.hotel@example.com".into(),
             from_name: "The Grange".into(),
         };
         assert_eq!(validate_email_settings(&gmail), Ok(()));

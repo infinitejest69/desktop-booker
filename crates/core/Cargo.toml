@@ -3,7 +3,7 @@ name = "booker-core"
 description = "Pure domain logic: availability, rates, invoices (no I/O)"
 version.workspace = true
 edition.workspace = true
-license.workspace = true
+license-file.workspace = true
 publish.workspace = true
 
 [dependencies]

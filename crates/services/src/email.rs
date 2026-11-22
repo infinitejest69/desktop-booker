@@ -112,8 +112,8 @@ mod tests {
         EmailSettings {
             host: "smtp.gmail.com".into(),
             port: 587,
-            username: "grange@gmail.com".into(),
-            from_address: "grange@gmail.com".into(),
+            username: "grange.hotel@example.com".into(),
+            from_address: "grange.hotel@example.com".into(),
             from_name: "The Grange".into(),
         }
     }
@@ -122,8 +122,8 @@ mod tests {
     fn a_message_has_the_hotel_as_sender_and_reply_to() {
         let m = build_message(&gmail(), "jo@example.com", "Your booking", "Hello").unwrap();
         let text = String::from_utf8(m.formatted()).unwrap();
-        assert!(text.contains("From: \"The Grange\" <grange@gmail.com>"));
-        assert!(text.contains("Reply-To: \"The Grange\" <grange@gmail.com>"));
+        assert!(text.contains("From: \"The Grange\" <grange.hotel@example.com>"));
+        assert!(text.contains("Reply-To: \"The Grange\" <grange.hotel@example.com>"));
         assert!(text.contains("To: jo@example.com"));
         assert!(text.contains("Subject: Your booking"));
     }

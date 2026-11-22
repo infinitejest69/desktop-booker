@@ -34,11 +34,11 @@
 - [x] ffmpeg joins each scene with a title card and end card into `videos/out/*.mp4` (1920 × 1080). Andy uploads to YouTube and adds voice-over or music if wanted; links go in the README and guide.
 
 ### E. Going public
-- [ ] `LICENSE`: MIT + Commons Clause; `package.json` and the Cargo `license` fields updated; README licence section.
-- [ ] Scan the whole history for secrets (gitleaks); check the docs for personal details (for example notes mentioning Andy's Gmail) and reword them.
-- [ ] Rewrite commit author emails to the GitHub noreply address (Andy confirms first; force push).
-- [ ] `CONTRIBUTING.md`, `SECURITY.md`, issue and pull request templates; README with screenshots, the guide link and videos.
-- [ ] Andy switches the repository to public on GitHub.
+- [x] `LICENSE`: MIT + Commons Clause; `package.json` and the Cargo `license` fields updated; README licence section.
+- [x] Scan the whole history for secrets (gitleaks); check the docs for personal details (for example notes mentioning Andy's Gmail) and reword them.
+- [x] ~~Rewrite commit author emails to the GitHub noreply address~~ Not needed: every commit already uses the noreply address.
+- [x] `CONTRIBUTING.md`, `SECURITY.md`, issue and pull request templates; README with screenshots, the guide link and videos.
+- [x] Andy switches the repository to public on GitHub (done 2026-11-22, before the clean-up).
 
 ## Acceptance
 - "Load demo hotel" gives The Lanterns Hotel with a year and a half of believable history, and the reports, calendar and dashboard look like a real, busy seaside hotel.
@@ -65,3 +65,4 @@
 - **Videos started (2026-11-22):** `pnpm videos` records `demo/scenes.video.ts`: six scenes (tour, phone booking, check-in/dinner/check-out, housekeeping, wedding, reports) to `videos/out/*.mp4` (ignored by git; Andy uploads them). Recorded from Chromium's screencast and encoded by ffmpeg (H.264, CRF 18, 30 fps), sharper than Playwright's own video. `demo/stage.js` draws the pointer, click ripples, captions and title/end cards inside the page, so no editing is needed. At Andy's request: true 1080p (1920 × 1080 at 1×) so whole screens fit; the tour also shows the bookings List with a search, and searches for and opens a guest. Demo data gained office Christmas parties (Fridays and Saturdays, 20 Nov to 20 Dec) and a few more conferences, so the suites aren't empty in late autumn.
 - **Nine videos (2026-11-22):** added setting up a hotel, staff/PINs/audit, and guests and data protection (Andy's choice). Demo data gained a duplicate guest to merge (Margaret and "Maggie" Trevithick). YouTube links are in the README workflows and at the top of each guide page; Andy uploads, then sends the links. Making the videos found a real bug: a new event's room block kept the default dates when the event's first day changed, so it held the wrong nights. Fixed in `EventForm.svelte` (an unsaved block moves with the first day), with an e2e test.
 - **All nine videos on YouTube (2026-11-22):** title and end cards are drawn in the page by `demo/stage.js`, so ffmpeg only encodes (no joining needed). Links in the README (workflows, and a Video column in the Features table) and at the top of each guide page. Backups has no video yet.
+- **Going public (2026-11-22):** Andy made the repository public, then asked for the clean-up. History scan (every version of every file, for keys, tokens, private keys, password assignments, `.env`/key/database files and personal emails): nothing secret found; every commit is already authored with the GitHub noreply address, so no rewrite or force push. The only find was a made-up `grange@gmail.com` in tests, now `grange.hotel@example.com` (the old string stays in history; it isn't anyone's secret). Added `LICENSE` (Commons Clause v1.0 over MIT; `license-file` in Cargo, "SEE LICENSE IN LICENSE" in package.json), `CONTRIBUTING.md`, `SECURITY.md` (private reporting through GitHub), issue forms and a pull request template. Andy's name stays as author and copyright holder.

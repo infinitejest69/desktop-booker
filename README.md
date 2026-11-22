@@ -99,4 +99,6 @@ DesktopBooker is written in Rust (Tauri 2) with a Svelte front end and an SQLite
 
 ## Licence
 
-Free to use and to change, including to run your own hotel. It may not be sold, or offered as a paid service built on it. (MIT with the Commons Clause; the licence file is added when the project is published.)
+Free to use and to change, including to run your own hotel. It may not be sold, or offered as a paid service built on it: MIT with the Commons Clause, see [LICENSE](LICENSE). That makes it *source-available* rather than open source in the strict sense.
+
+Want to help? See [CONTRIBUTING.md](CONTRIBUTING.md). Found a security problem? See [SECURITY.md](SECURITY.md).

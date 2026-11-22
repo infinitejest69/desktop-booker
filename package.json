@@ -22,7 +22,7 @@
     "videos": "playwright test -c demo/playwright.config.ts --project=videos"
   },
   "private": true,
-  "license": "UNLICENSED",
+  "license": "SEE LICENSE IN LICENSE",
   "dependencies": {
     "@fontsource-variable/atkinson-hyperlegible-next": "^5.3.0",
     "@fontsource/young-serif": "^5.3.0",

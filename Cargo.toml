@@ -5,7 +5,8 @@ members = ["src-tauri", "crates/*"]
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
-license = "UNLICENSED"
+# MIT with the Commons Clause (not an SPDX licence, so the file is named).
+license-file = "LICENSE"
 publish = false
 
 [workspace.lints.rust]

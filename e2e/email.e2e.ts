@@ -5,9 +5,9 @@ async function setUpGmail(page: import("@playwright/test").Page) {
   const account = page.getByRole("form", { name: "Email account" });
   await account.getByRole("button", { name: "Use Gmail" }).click();
   await expect(account.getByRole("textbox", { name: "Mail server" })).toHaveValue("smtp.gmail.com");
-  await account.getByRole("textbox", { name: "User name" }).fill("grange@gmail.com");
+  await account.getByRole("textbox", { name: "User name" }).fill("grange.hotel@example.com");
   await account.getByLabel("Password").fill("abcd efgh ijkl mnop");
-  await account.getByRole("textbox", { name: "From address" }).fill("grange@gmail.com");
+  await account.getByRole("textbox", { name: "From address" }).fill("grange.hotel@example.com");
   await account.getByRole("textbox", { name: "From name" }).fill("The Grange");
   await account.getByRole("button", { name: "Save email account" }).click();
   await expect(page.getByText("Saved the email settings")).toBeVisible();

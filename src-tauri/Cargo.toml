@@ -4,6 +4,7 @@ version.workspace = true
 description = "Offline hotel booking app"
 authors = ["Andy Lumsden"]
 edition.workspace = true
+license-file.workspace = true
 # `cargo run` (and `pnpm tauri dev`) runs the app, not the demo bridge.
 default-run = "desktop-booker"
 

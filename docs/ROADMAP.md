@@ -15,7 +15,7 @@ Status values: `todo` · `in-progress` · `done`. Tick tasks (`- [x]`) in each p
 | 8 | [Carried over](phases/phase-8-carry-over.md) | Medium | in-progress | 15 / 17 |
 | 9 | [Report & dashboard builder](phases/phase-9-report-builder.md) | High | done | 12 / 12 |
 | 10 | [Rooms, screens & demo data](phases/phase-10-polish-backlog.md) | Medium | in-progress | 7 / 8 |
-| 11 | [Demo hotel, user guide, videos & going public](phases/phase-11-demo-guide-public.md) | Medium | in-progress | 7 / 13 |
+| 11 | [Demo hotel, user guide, videos & going public](phases/phase-11-demo-guide-public.md) | Medium | in-progress | 12 / 14 |
 | – | [Later / not v1](phases/later.md) | – | todo | – |
 
 **Milestones:** Phase 0 delivers a compiling app shell plus the private repo. Phases 1–2 deliver a usable room-booking app. Phase 7 delivers v1.0.
