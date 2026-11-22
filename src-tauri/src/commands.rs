@@ -17,13 +17,17 @@ use booker_core::{
     SuiteBookingStatus, SuitePricing, SuiteRates, TaxRate, User, UserId, validate_pin,
 };
 use booker_core::{
+    Dashboard, DashboardId, ReportResult, ReportSpec, SavedReport, SavedReportId,
+    validate_report_spec,
+};
+use booker_core::{
     DayOccupancy, GuestId, GuestProfile, HousekeepingStatus, MonthRevenue, RoomHousekeeping,
     csv_money, occupancy_total, to_csv,
 };
 use booker_services::pin::{hash_pin, verify_pin};
 use booker_store::{
     BookingRepo, EventRepo, FloorRepo, GuestRepo, InvoiceRepo, OperationsRepo, RateRepo,
-    RoomTypeRepo, SettingsRepo, SpaceRepo, SqliteStore, StoreError, SuiteRepo,
+    ReportRepo, RoomTypeRepo, SettingsRepo, SpaceRepo, SqliteStore, StoreError, SuiteRepo,
 };
 use chrono::{NaiveDate, NaiveDateTime};
 use tauri::State;
@@ -1282,4 +1286,150 @@ pub async fn save_guest_data(
             .replace(' ', "-")
     );
     save_with_dialog(&app, name, ("JSON", "json"), json).await
+}
+
+// ---------------------------------------------------------------------------
+// Report builder (ADR 0005): admins only, like the other reports.
+// ---------------------------------------------------------------------------
+
+/// Runs a report spec over the facts for its period, as of today.
+async fn run_spec(acting: &SqliteStore, spec: &ReportSpec) -> CmdResult<ReportResult> {
+    validate_report_spec(spec).map_err(StoreError::from)?;
+    let today = today();
+    let facts = acting.report_facts(spec.period.resolve(today)).await?;
+    Ok(booker_core::run_report(spec, &facts, today))
+}
+
+/// Every measure the builder offers, with the splits each can use.
+#[tauri::command]
+pub async fn report_catalogue(
+    store: Store<'_>,
+    session: Sess<'_>,
+) -> CmdResult<Vec<booker_core::MeasureInfo>> {
+    session.require(&store, Permission::ViewReports)?;
+    Ok(booker_core::report_catalogue())
+}
+
+#[tauri::command]
+pub async fn run_report(
+    store: Store<'_>,
+    session: Sess<'_>,
+    spec: ReportSpec,
+) -> CmdResult<ReportResult> {
+    let acting = session.require(&store, Permission::ViewReports)?;
+    run_spec(&acting, &spec).await
+}
+
+/// A built report as CSV text, for copying into a spreadsheet.
+#[tauri::command]
+pub async fn custom_report_csv(
+    store: Store<'_>,
+    session: Sess<'_>,
+    spec: ReportSpec,
+) -> CmdResult<String> {
+    let acting = session.require(&store, Permission::ViewReports)?;
+    Ok(booker_core::custom_report_csv(
+        &run_spec(&acting, &spec).await?,
+    ))
+}
+
+#[tauri::command]
+pub async fn save_custom_report_csv(
+    app: tauri::AppHandle,
+    store: Store<'_>,
+    session: Sess<'_>,
+    spec: ReportSpec,
+) -> CmdResult<Option<String>> {
+    let acting = session.require(&store, Permission::ViewReports)?;
+    let result = run_spec(&acting, &spec).await?;
+    let safe: String = spec
+        .name
+        .chars()
+        .map(|c| {
+            if c.is_alphanumeric() {
+                c.to_ascii_lowercase()
+            } else {
+                '-'
+            }
+        })
+        .collect();
+    let name = format!(
+        "{}-{}.csv",
+        safe.trim_matches('-'),
+        result.period.start.format("%Y-%m-%d")
+    );
+    save_with_dialog(
+        &app,
+        name,
+        ("CSV", "csv"),
+        booker_core::custom_report_csv(&result),
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn list_saved_reports(
+    store: Store<'_>,
+    session: Sess<'_>,
+) -> CmdResult<Vec<SavedReport>> {
+    Ok(session
+        .require(&store, Permission::ViewReports)?
+        .list_saved_reports()
+        .await?)
+}
+
+#[tauri::command]
+pub async fn save_saved_report(
+    store: Store<'_>,
+    session: Sess<'_>,
+    report: SavedReport,
+) -> CmdResult<()> {
+    Ok(session
+        .require(&store, Permission::ViewReports)?
+        .save_saved_report(&report)
+        .await?)
+}
+
+#[tauri::command]
+pub async fn delete_saved_report(
+    store: Store<'_>,
+    session: Sess<'_>,
+    id: SavedReportId,
+) -> CmdResult<()> {
+    Ok(session
+        .require(&store, Permission::ViewReports)?
+        .delete_saved_report(id)
+        .await?)
+}
+
+#[tauri::command]
+pub async fn list_dashboards(store: Store<'_>, session: Sess<'_>) -> CmdResult<Vec<Dashboard>> {
+    Ok(session
+        .require(&store, Permission::ViewReports)?
+        .list_dashboards()
+        .await?)
+}
+
+#[tauri::command]
+pub async fn save_dashboard(
+    store: Store<'_>,
+    session: Sess<'_>,
+    dashboard: Dashboard,
+) -> CmdResult<()> {
+    Ok(session
+        .require(&store, Permission::ViewReports)?
+        .save_dashboard(&dashboard)
+        .await?)
+}
+
+#[tauri::command]
+pub async fn delete_dashboard(
+    store: Store<'_>,
+    session: Sess<'_>,
+    id: DashboardId,
+) -> CmdResult<()> {
+    Ok(session
+        .require(&store, Permission::ViewReports)?
+        .delete_dashboard(id)
+        .await?)
 }

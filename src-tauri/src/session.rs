@@ -95,6 +95,7 @@ impl Session {
                 Permission::CancelBookings => "Only an admin can cancel bookings.",
                 Permission::ManageUsers => "Only an admin can manage users.",
                 Permission::ViewAudit => "Only an admin can see the audit log.",
+                Permission::ViewReports => "Only an admin can see reports.",
                 _ => "Only an admin can change the hotel's setup.",
             }));
         }

@@ -17,7 +17,7 @@ Built with **Rust + Tauri 2** and a **SvelteKit 3 (Svelte 5)** frontend. Runs on
 - **Rooms:** every floor in one list, as plans or cards; availability, dirty / clean / ready, whole floors at once; each room's features (wifi, pets allowed, accessible, smoking) as icons, and a *Room must have* filter when booking.
 - **Guests:** profiles, history, merging duplicates, data export.
 - **Invoices & payments**, **email** to guests through the hotel's Gmail.
-- **Admin only** (below the divider in the menu): **Reports** (occupancy, revenue, ADR & RevPAR, CSV) and **My hotel** (setup, rates, users, backups, audit log).
+- **Admin only** (below the divider in the menu): **Reports** (the standard occupancy, revenue, ADR & RevPAR reports; *Build a report* from 24 measures such as occupancy, revenue, arrivals or lead time, split by month, room type, source and more, shown as a number, bars, a line or a table; saved reports arranged on *Dashboards*; CSV for any of them) and **My hotel** (setup, rates, users, backups, audit log).
 
 ## Prerequisites
 

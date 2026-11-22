@@ -94,7 +94,7 @@ impl SqliteStore {
 // *or* on an open transaction (`&mut *tx`).
 // ---------------------------------------------------------------------------
 
-async fn load_floors(conn: &mut SqliteConnection) -> StoreResult<Vec<Floor>> {
+pub(crate) async fn load_floors(conn: &mut SqliteConnection) -> StoreResult<Vec<Floor>> {
     let rows: Vec<FloorRow> = sqlx::query_as(
         "SELECT id, name, level, grid_cols, grid_rows FROM floors
          WHERE deleted_at IS NULL ORDER BY level, name",

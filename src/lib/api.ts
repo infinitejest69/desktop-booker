@@ -60,6 +60,11 @@ export interface EmailSetup {
 }
 import type { BackupSettings } from "./bindings/BackupSettings";
 import type { BackupStatus } from "./bindings/BackupStatus";
+import type { Dashboard } from "./bindings/Dashboard";
+import type { MeasureInfo } from "./bindings/MeasureInfo";
+import type { ReportResult } from "./bindings/ReportResult";
+import type { ReportSpec } from "./bindings/ReportSpec";
+import type { SavedReport } from "./bindings/SavedReport";
 
 export type ErrorKind = "validation" | "not_found" | "internal" | "locked" | "forbidden";
 
@@ -218,4 +223,17 @@ export const api = {
   saveReportCsv: (report: "occupancy" | "revenue", period: DateRange) =>
     call<string | null>("save_report_csv", { report, period }),
   saveGuestData: (id: string) => call<string | null>("save_guest_data", { id }),
+
+  // Report builder (admins only)
+  reportCatalogue: () => call<MeasureInfo[]>("report_catalogue"),
+  runReport: (spec: ReportSpec) => call<ReportResult>("run_report", { spec }),
+  customReportCsv: (spec: ReportSpec) => call<string>("custom_report_csv", { spec }),
+  /** Opens the save dialog; resolves to the saved path, or null if cancelled. */
+  saveCustomReportCsv: (spec: ReportSpec) => call<string | null>("save_custom_report_csv", { spec }),
+  listSavedReports: () => call<SavedReport[]>("list_saved_reports"),
+  saveSavedReport: (report: SavedReport) => call<void>("save_saved_report", { report }),
+  deleteSavedReport: (id: string) => call<void>("delete_saved_report", { id }),
+  listDashboards: () => call<Dashboard[]>("list_dashboards"),
+  saveDashboard: (dashboard: Dashboard) => call<void>("save_dashboard", { dashboard }),
+  deleteDashboard: (id: string) => call<void>("delete_dashboard", { id }),
 };

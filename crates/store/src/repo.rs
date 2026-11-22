@@ -299,3 +299,38 @@ pub trait EmailRepo {
         booking: Option<BookingId>,
     ) -> impl Future<Output = StoreResult<Vec<booker_core::EmailLogEntry>>> + Send;
 }
+
+/// The report builder (ADR 0005): the facts a report runs over, and saved
+/// reports and dashboards.
+pub trait ReportRepo {
+    /// Every fact row a report over `period` might need.
+    fn report_facts(
+        &self,
+        period: DateRange,
+    ) -> impl Future<Output = StoreResult<booker_core::ReportFacts>> + Send;
+    /// Saved reports, by name.
+    fn list_saved_reports(
+        &self,
+    ) -> impl Future<Output = StoreResult<Vec<booker_core::SavedReport>>> + Send;
+    fn save_saved_report(
+        &self,
+        report: &booker_core::SavedReport,
+    ) -> impl Future<Output = StoreResult<()>> + Send;
+    /// Also takes it off every dashboard.
+    fn delete_saved_report(
+        &self,
+        id: booker_core::SavedReportId,
+    ) -> impl Future<Output = StoreResult<()>> + Send;
+    /// Dashboards by name, each with its reports in order.
+    fn list_dashboards(
+        &self,
+    ) -> impl Future<Output = StoreResult<Vec<booker_core::Dashboard>>> + Send;
+    fn save_dashboard(
+        &self,
+        dashboard: &booker_core::Dashboard,
+    ) -> impl Future<Output = StoreResult<()>> + Send;
+    fn delete_dashboard(
+        &self,
+        id: booker_core::DashboardId,
+    ) -> impl Future<Output = StoreResult<()>> + Send;
+}

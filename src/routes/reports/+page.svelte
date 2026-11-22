@@ -11,6 +11,8 @@
   import { formatDay, today } from "#lib/dates.ts";
   import { formatMoney } from "#lib/format.ts";
   import { useSession } from "#lib/session/session.svelte.ts";
+  import ViewSwitch from "#lib/nav/ViewSwitch.svelte";
+  import { reportViews } from "#lib/nav/views.ts";
 
   const session = useSession();
   // Reports are admin only; the Rust commands refuse anyone else too.
@@ -85,6 +87,7 @@
     <p class="muted">Reports are for admins. Ask an admin to sign in.</p>
   {:else}
   <div class="row toolbar">
+    <ViewSwitch views={reportViews} current="Standard" label="Reports" />
     <Field>
       <FieldLabel>Month</FieldLabel>
       <Input type="month" value={month} onValueChange={(v) => v && (month = v)} />

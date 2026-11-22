@@ -63,6 +63,18 @@ pub enum ValidationError {
     TooManyGuests { room: String, max: u8 },
     #[error("A room can park at most {max} cars")]
     TooManyCars { max: u8 },
+    #[error("{measure} can't be split by {split}")]
+    ReportSplitNotAllowed { measure: String, split: String },
+    #[error("A line chart needs a split by day, week, month or year")]
+    ReportLineNeedsTime,
+    #[error("Choose a period that ends after it starts and is at most ten years long")]
+    InvalidReportPeriod,
+    #[error("Split by day covers at most a year; choose week or month for longer periods")]
+    ReportTooManyDays,
+    #[error("A dashboard holds at most {max} reports")]
+    DashboardTooFull { max: usize },
+    #[error("That report is on this dashboard already")]
+    DashboardReportTwice,
     #[error("\"{space}\" isn't a bedroom")]
     NotABedroom { space: String },
     #[error("Room {room} is out of service")]

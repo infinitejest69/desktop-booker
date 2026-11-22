@@ -18,6 +18,7 @@ pub mod money;
 pub mod operations;
 pub mod property;
 pub mod rates;
+pub mod report_builder;
 pub mod suites;
 pub mod users;
 pub mod validation;
@@ -50,8 +51,9 @@ pub use folio::{
 };
 pub use grid::{GridRect, MAX_GRID_CELLS};
 pub use ids::{
-    AuditId, BoardOptionId, BookingId, BookingRoomId, ChargeId, EventId, FloorId, GuestId,
-    InvoiceId, PaymentId, RateRuleId, RoomTypeId, SpaceId, SuiteBookingId, TaxRateId, UserId,
+    AuditId, BoardOptionId, BookingId, BookingRoomId, ChargeId, DashboardId, EventId, FloorId,
+    GuestId, InvoiceId, PaymentId, RateRuleId, RoomTypeId, SavedReportId, SpaceId, SuiteBookingId,
+    TaxRateId, UserId,
 };
 pub use invoices::{
     BASIS_POINTS, Charge, ChargeCategory, FolioTotals, LineAmounts, Payment, PaymentMethod,
@@ -71,6 +73,13 @@ pub use property::{
 pub use rates::{
     Adjustment, BoardOption, NightPrice, RateRule, StayQuote, quote_stay, room_rate_for_night,
     validate_board_option, validate_rate_rule,
+};
+pub use report_builder::{
+    ALL_MEASURES, ALL_SPLITS, ChargeFact, ChartKind, DASHBOARD_MAX_ITEMS, Dashboard, DashboardItem,
+    EventFact, Measure, MeasureInfo, PaymentFact, Period, ReportFacts, ReportNames, ReportResult,
+    ReportRow, ReportSpec, RoomFact, RoomNightFact, SavedReport, Split, StayFact, SuiteFact, Unit,
+    allows, catalogue as report_catalogue, format_value, report_csv as custom_report_csv,
+    run as run_report, validate_dashboard, validate_spec as validate_report_spec,
 };
 pub use suites::{
     Layout, SuiteBooking, SuiteBookingEntry, SuiteBookingStatus, SuitePricing, SuiteRates,

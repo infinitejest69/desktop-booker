@@ -125,3 +125,11 @@ define_id!(
     /// Identifies an issued [`crate::Invoice`].
     InvoiceId
 );
+define_id!(
+    /// Identifies a [`crate::SavedReport`].
+    SavedReportId
+);
+define_id!(
+    /// Identifies a [`crate::Dashboard`].
+    DashboardId
+);

@@ -155,6 +155,16 @@ pub fn run() {
             commands::send_booking_email,
             commands::list_email_log,
             commands::save_report_csv,
+            commands::report_catalogue,
+            commands::run_report,
+            commands::custom_report_csv,
+            commands::save_custom_report_csv,
+            commands::list_saved_reports,
+            commands::save_saved_report,
+            commands::delete_saved_report,
+            commands::list_dashboards,
+            commands::save_dashboard,
+            commands::delete_dashboard,
             commands::save_guest_data,
         ])
         .build(tauri::generate_context!())

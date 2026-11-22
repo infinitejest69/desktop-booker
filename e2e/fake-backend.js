@@ -17,6 +17,8 @@
     },
     floors: [],
     types: [],
+    savedReports: [],
+    dashboards: [],
     spaces: [],
     rules: [],
     boards: [],
@@ -551,6 +553,8 @@
     "save_space", "delete_space", "save_rate_rule", "delete_rate_rule", "save_board_option",
     "delete_board_option", "list_users", "save_user", "list_audit", "seed_demo_data",
     "save_suite_rates", "save_tax_rate", "save_invoice_settings", "erase_guest", "merge_guests", "revenue_report", "room_kpis", "occupancy_report", "report_csv", "save_report_csv", "save_backup_settings", "backup_now", "restore_backup", "save_email_settings", "save_email_template", "send_test_email",
+    "report_catalogue", "run_report", "custom_report_csv", "save_custom_report_csv", "list_saved_reports",
+    "save_saved_report", "delete_saved_report", "list_dashboards", "save_dashboard", "delete_dashboard",
   ]);
 
   const guestName = (b) => {
@@ -560,6 +564,34 @@
 
   const handlers = {
     app_version: () => "0.1.0",
+    report_catalogue: () =>
+      MEASURES.map(([measure, label, area, unit]) => ({
+        measure, label, area, unit, splits: SPLITS.filter((s) => allows(measure, s)),
+      })),
+    run_report: ({ spec }) => fakeRun(spec),
+    custom_report_csv: ({ spec }) => {
+      const r = fakeRun(spec);
+      return ["Group,Value", ...r.rows.map((x) => `${x.label},${x.value}`), `Total,${r.total}`].join("\r\n") + "\r\n";
+    },
+    save_custom_report_csv: () => null,
+    list_saved_reports: () => [...db.savedReports].sort((a, b) => a.spec.name.localeCompare(b.spec.name)),
+    save_saved_report: ({ report }) => {
+      fakeRun(report.spec);
+      db.savedReports = db.savedReports.filter((r) => r.id !== report.id).concat(report);
+    },
+    delete_saved_report: ({ id }) => {
+      db.savedReports = db.savedReports.filter((r) => r.id !== id);
+      db.dashboards.forEach((d) => (d.items = d.items.filter((i) => i.report_id !== id)));
+    },
+    list_dashboards: () => [...db.dashboards].sort((a, b) => a.name.localeCompare(b.name)),
+    save_dashboard: ({ dashboard }) => {
+      if (!dashboard.name.trim()) err("Dashboard name is required");
+      if (dashboard.items.length > 12) err("A dashboard holds at most 12 reports");
+      db.dashboards = db.dashboards.filter((d) => d.id !== dashboard.id).concat(dashboard);
+    },
+    delete_dashboard: ({ id }) => {
+      db.dashboards = db.dashboards.filter((d) => d.id !== id);
+    },
     get_settings: () => db.settings,
     save_settings: ({ settings }) => {
       db.settings = settings;
@@ -943,6 +975,83 @@
     list_audit: ({ userId, entity }) =>
       db.audit.filter((e) => (!userId || e.user_id === userId) && (!entity || e.entity === entity)),
   };
+
+
+  // --- Report builder (fake): the same allowed splits as Rust; simple figures.
+  const MEASURES = [
+    ["room_nights_sold", "Room-nights sold", "Rooms", "count"],
+    ["occupancy", "Occupancy", "Rooms", "percent"],
+    ["room_revenue", "Room revenue", "Rooms", "money"],
+    ["adr", "Average daily rate (ADR)", "Rooms", "money"],
+    ["rev_par", "Revenue per available room (RevPAR)", "Rooms", "money"],
+    ["guests_staying", "Guests staying", "Rooms", "count"],
+    ["arrivals", "Arrivals", "Bookings", "count"],
+    ["departures", "Departures", "Bookings", "count"],
+    ["bookings_made", "Bookings made", "Bookings", "count"],
+    ["cancellations", "Cancellations", "Bookings", "count"],
+    ["no_shows", "No-shows", "Bookings", "count"],
+    ["average_stay", "Average length of stay", "Bookings", "nights"],
+    ["average_lead_time", "Average lead time", "Bookings", "days"],
+    ["total_revenue", "Total revenue", "Money", "money"],
+    ["board_revenue", "Board revenue", "Money", "money"],
+    ["extras_revenue", "Extras revenue", "Money", "money"],
+    ["payments_taken", "Payments taken", "Money", "money"],
+    ["deposits_taken", "Deposits taken", "Money", "money"],
+    ["suite_hours", "Suite hours booked", "Suites and events", "hours"],
+    ["suite_revenue", "Suite revenue", "Suites and events", "money"],
+    ["events", "Events", "Suites and events", "count"],
+    ["event_attendees", "Event attendees", "Suites and events", "count"],
+    ["new_guests", "New guests", "Guests", "count"],
+    ["returning_guests", "Returning guests", "Guests", "count"],
+  ];
+  const SPLITS = ["none", "day", "week", "month", "year", "room_type", "floor", "room", "board", "source", "status",
+    "revenue_type", "payment_method", "suite", "event_kind"];
+  function allows(m, split) {
+    if (["none", "day", "week", "month", "year"].includes(split)) return true;
+    const room = ["room_type", "floor", "room"].includes(split);
+    const booking = ["board", "source"].includes(split);
+    if (["occupancy", "rev_par"].includes(m)) return room;
+    if (["cancellations", "no_shows"].includes(m)) return room || booking;
+    if (m === "total_revenue") return split === "revenue_type";
+    if (m === "extras_revenue") return false;
+    if (["payments_taken", "deposits_taken"].includes(m)) return split === "payment_method";
+    if (["suite_hours", "suite_revenue"].includes(m)) return ["suite", "event_kind"].includes(split);
+    if (["events", "event_attendees"].includes(m)) return split === "event_kind";
+    return room || booking || split === "status";
+  }
+  const unitOf = (m) => MEASURES.find((x) => x[0] === m)?.[3] ?? "count";
+  function resolvePeriod(p) {
+    const t = today();
+    const first = t.slice(0, 8) + "01";
+    if (p.kind === "fixed") return { start: p.start, end: p.end };
+    if (p.kind === "this_month") return { start: first, end: addMonths(first, 1) };
+    if (p.kind === "last_month") return { start: addMonths(first, -1), end: first };
+    if (p.kind === "this_year") return { start: `${t.slice(0, 4)}-01-01`, end: `${+t.slice(0, 4) + 1}-01-01` };
+    return { start: t, end: addDays(t, 30) };
+  }
+  function addMonths(iso, n) {
+    const d = new Date(`${iso}T00:00:00Z`);
+    d.setUTCMonth(d.getUTCMonth() + n);
+    return d.toISOString().slice(0, 10);
+  }
+  function fakeRun(spec) {
+    const MEASURE = MEASURES.find((x) => x[0] === spec.measure);
+    if (!MEASURE || !allows(spec.measure, spec.split))
+      throw { kind: "validation", message: `${MEASURE?.[1] ?? "That"} can't be split that way` };
+    if (!spec.name.trim()) throw { kind: "validation", message: "Report name is required" };
+    const period = resolvePeriod(spec.period);
+    const unit = unitOf(spec.measure);
+    const each = unit === "money" ? 9500 : unit === "percent" ? 500 : unit === "count" ? 2 : 25;
+    let labels = [];
+    if (spec.split === "room_type") labels = db.types.map((t) => [t.id, t.name]);
+    else if (spec.split === "month") {
+      for (let m = period.start.slice(0, 8) + "01"; m < period.end; m = addMonths(m, 1))
+        labels.push([m.slice(0, 7), new Date(`${m}T00:00:00Z`).toLocaleDateString("en-GB", { month: "long", year: "numeric", timeZone: "UTC" })]);
+    } else if (spec.split !== "none") labels = [["all", "All"]];
+    const rows = labels.map(([key, label], i) => ({ key, label, value: each * (i + 1) }));
+    const total = unit === "money" || unit === "count" ? rows.reduce((n, r) => n + r.value, 0) || each : each;
+    return { spec, unit, period, rows, total };
+  }
 
   window.__fakeDb = db;
   window.__TAURI_INTERNALS__ = {

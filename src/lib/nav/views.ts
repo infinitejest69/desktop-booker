@@ -9,3 +9,9 @@ export const functionViews = [
   { label: "Suites", href: "/suites" },
   { label: "Events", href: "/events" },
 ];
+
+export const reportViews = [
+  { label: "Standard", href: "/reports" },
+  { label: "Build a report", href: "/reports/build" },
+  { label: "Dashboards", href: "/reports/dashboards" },
+];

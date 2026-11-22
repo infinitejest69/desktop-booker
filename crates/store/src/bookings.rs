@@ -252,7 +252,7 @@ async fn load_rate_rules(conn: &mut SqliteConnection) -> StoreResult<Vec<RateRul
     rows.into_iter().map(RateRule::try_from).collect()
 }
 
-async fn load_boards(conn: &mut SqliteConnection) -> StoreResult<Vec<BoardOption>> {
+pub(crate) async fn load_boards(conn: &mut SqliteConnection) -> StoreResult<Vec<BoardOption>> {
     let rows: Vec<BoardRow> = sqlx::query_as(
         "SELECT id, code, name, adult_price, child_price FROM board_options
          WHERE deleted_at IS NULL ORDER BY adult_price, name",

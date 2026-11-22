@@ -1,6 +1,6 @@
 # 0005: Custom reports and dashboards are built from a fixed set of measures and splits
 
-**Status:** proposed (2026-11-21). Extends the Reports scope in REQUIREMENTS.md; settles how Phase 9 works.
+**Status:** accepted (2026-11-22; built in Phase 9). Extends the Reports scope in REQUIREMENTS.md; settles how Phase 9 works.
 
 ## Context
 Reports today are fixed: occupancy by night, revenue by month, ADR and RevPAR. Andy wants admins to build their own reports and dashboards. The app is offline and single-machine (ADR 0002), money is integer minor units, permissions are checked in Rust commands, and all data access goes through repository traits.

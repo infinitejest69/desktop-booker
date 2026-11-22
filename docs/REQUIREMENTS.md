@@ -21,7 +21,7 @@ Offline booking app for a small family-run hotel: rooms, function suites, events
 | Guests (CRM) | Guest records, stay history, notes and preferences, GDPR export/erase. |
 | Housekeeping | Clean / dirty / inspected per room; daily arrivals, departures and in-house lists. |
 | Email | Confirmation emails through the hotel's own SMTP account. |
-| Reports | Occupancy %, revenue by month and by category, CSV export. |
+| Reports | Occupancy %, revenue by month and by category, CSV export. Admins build their own reports from 24 measures and 15 splits and arrange them on dashboards ([ADR 0005](decisions/0005-report-builder.md)). |
 | Users | Staff name + PIN, Admin / Staff roles, audit log of who changed what. |
 | Backups | Automatic daily backup to a chosen folder (USB / OneDrive / Dropbox / NAS), rotation, one-click restore. |
 | Channels | None. Bookings are entered by hand (OTA / iCal deferred). |
